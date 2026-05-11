@@ -1,31 +1,36 @@
 #include "main.h"
 #include "stm32f446xx.h"
+#include "stm32f4xx_ll_adc.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_tim.h"
+#include "stm32f4xx_ll_usart.h"
 #include "stm32f4xx_ll_utils.h"
 #include <stdint.h>
-#define N_MOTOR_STATES 6
+#include <stdio.h>
+// #define N_MOTOR_STATES 6
 #define PWM_ARR 250
-motorState_t MotorStates[N_MOTOR_STATES];
-int state_counter = 0;
+// motorState_t MotorStates[N_MOTOR_STATES];
+// int state_counter = 0;
+// volatile uint16_t adc_current_val = 0;
+uint32_t priority_grouping = 5;
 int main() {
   //
   // Configure Clock
   //
   SystemClock_Config();
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
-  /* Enable HSI if not already activated*/
-  // if (LL_RCC_HSI_IsReady() == 0) {
-  //   /* Enable HSI and wait for activation*/
-  //   LL_RCC_HSI_Enable();
-  //   while (LL_RCC_HSI_IsReady() != 1) {
-  //   };
-  // }
-  initMotorStates();
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOB);
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOC);
+  //
+  // Set NVIC Priority Grouping
+  //
+  NVIC_SetPriorityGrouping(priority_grouping);
+
+  //
+  // Enable DEBUG GPIOS
+  //
   LL_GPIO_InitTypeDef GPIO_Initstruct;
   LL_GPIO_StructInit(&GPIO_Initstruct);
   GPIO_Initstruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
@@ -46,15 +51,22 @@ int main() {
   GPIO_Initstruct.Pull = LL_GPIO_PULL_NO;
   GPIO_Initstruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_Initstruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
-  GPIO_Initstruct.Pin = L1_EN_PIN | L2_EN_PIN | L3_EN_PIN;
+  GPIO_Initstruct.Pin = L1_EN_PIN | L2_EN_PIN;
   LL_GPIO_Init(EN_PORT, &GPIO_Initstruct);
   GPIO_Initstruct.Mode = LL_GPIO_MODE_ALTERNATE;
   GPIO_Initstruct.Alternate = LL_GPIO_AF_2;
-  GPIO_Initstruct.Pin =
-      L1_SIG_PIN | L2_SIG_PIN | L3_SIG_PIN; // | LL_GPIO_PIN_7;
+  GPIO_Initstruct.Pin = L1_SIG_PIN | L2_SIG_PIN; // | LL_GPIO_PIN_7;
   LL_GPIO_Init(SIG_PORT, &GPIO_Initstruct);
-  // GPIO_Initstruct.Pin = L3_EN_PIN | L3_SIG_PIN;
-  // LL_GPIO_Init(L3_PORT, &GPIO_Initstruct);
+  //
+  // Configure GPIOS for Current_Sensor
+  //
+  GPIO_Initstruct.Mode = LL_GPIO_MODE_ANALOG;
+  GPIO_Initstruct.Pull = LL_GPIO_PULL_NO;
+  GPIO_Initstruct.Pin = CURRENT_SENSOR_PIN;
+  LL_GPIO_Init(CURRENT_SENSOR_PORT, &GPIO_Initstruct);
+
+  //
+  // Configure "Heartbeat" button Interrupt
 
   LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTC, LL_SYSCFG_EXTI_LINE13);
   LL_EXTI_InitTypeDef EXTI_InitStruct;
@@ -64,7 +76,7 @@ int main() {
   EXTI_InitStruct.LineCommand = ENABLE;
   LL_EXTI_Init(&EXTI_InitStruct);
   /*
-   * Set Timer for state change
+   * Set Timer for ADC COnversion
    */
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_TIM1);
   LL_TIM_InitTypeDef TIM_InitStruct;
@@ -75,7 +87,8 @@ int main() {
   TIM_InitStruct.RepetitionCounter = 0;
   LL_TIM_Init(TIM1, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM1);
-  LL_TIM_EnableIT_UPDATE(TIM1);
+  // LL_TIM_EnableIT_UPDATE(TIM1);
+  LL_TIM_SetTriggerOutput(TIM2, LL_TIM_TRGO_UPDATE);
   LL_TIM_EnableCounter(TIM1);
   /*
    * Define PWM Timer
@@ -96,105 +109,143 @@ int main() {
   LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH1, &TIM_OC_InitStruct); // PC6
   // LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH2, &TIM_OC_InitStruct); // PC7
   LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH3, &TIM_OC_InitStruct); // PC8
-  LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH4, &TIM_OC_InitStruct); // PC9
+  // LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH4, &TIM_OC_InitStruct); // PC9
   LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH1);
   // LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH2);
   LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH3);
-  LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH4);
+  // LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH4);
 
   // LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH2);
   LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH1);
   LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH3);
-  LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH4);
+  // LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH4);
 
-  uint32_t priority_grouping = 5;
-  NVIC_SetPriorityGrouping(priority_grouping);
+  initADC();
+  initUART();
+
   uint32_t encoded_priority = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(EXTI15_10_IRQn, encoded_priority);
   NVIC_EnableIRQ(EXTI15_10_IRQn);
-  NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
-  NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
+  // NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
+  // NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
   USERLED_PORT->ODR |= USERLED_PIN;
   // USERLED_PORT->ODR &= ~USERLED_PIN;
-  // int current_arr = 10000;
-  // int arr_min = 2;
-  int f_curr = 15; // Hz
-  int f_max = 300; // Hz
-  float pwm_value_start = 0.5;
-  int f_max_pwm = 800;
-  int f_pwm_start = 0;
-  LL_TIM_SetAutoReload(TIM1,
-                       (int)(1 / (float)f_curr / (10e-6 * N_MOTOR_STATES)));
+  motorState_t mState;
+  mState.L1 = STATE_HIGH;
+  mState.L2 = STATE_LOW;
+  SetPinsFromState(&mState);
+  setPWMvalue(0.25);
 
   while (1) {
-    if (f_curr < f_max) {
-      LL_TIM_SetAutoReload(TIM1,
-                           (int)(1 / (float)f_curr / (10e-6 * N_MOTOR_STATES)));
-      // LL_TIM_SetAutoReload(TIM1, (int)(1 / (float)f_curr / 10e-6));
-      f_curr += 1;
-      LL_mDelay(100);
-    }
-    if (f_curr > f_pwm_start && f_curr < f_max_pwm) {
-      LL_TIM_OC_SetMode(TIM3, LL_TIM_CHANNEL_CH1, LL_TIM_OCMODE_PWM1);
-      LL_TIM_OC_SetMode(TIM3, LL_TIM_CHANNEL_CH3, LL_TIM_OCMODE_PWM1);
-      LL_TIM_OC_SetMode(TIM3, LL_TIM_CHANNEL_CH4, LL_TIM_OCMODE_PWM1);
+  }
+}
 
-      setPWMvalue(pwm_value_start + (1 - pwm_value_start) /
-                                        (float)(f_max_pwm - f_pwm_start) *
-                                        (float)(f_curr - f_pwm_start));
-    } else {
-      LL_TIM_OC_SetMode(TIM3, LL_TIM_CHANNEL_CH1, LL_TIM_OCMODE_FORCED_ACTIVE);
-      LL_TIM_OC_SetMode(TIM3, LL_TIM_CHANNEL_CH3, LL_TIM_OCMODE_FORCED_ACTIVE);
-      LL_TIM_OC_SetMode(TIM3, LL_TIM_CHANNEL_CH4, LL_TIM_OCMODE_FORCED_ACTIVE);
-    }
+void initADC() {
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC);
+  LL_ADC_CommonInitTypeDef ADCCommomInitStruct;
+  LL_ADC_CommonStructInit(&ADCCommomInitStruct);
+  ADCCommomInitStruct.CommonClock = LL_ADC_CLOCK_SYNC_PCLK_DIV4;
+  ADCCommomInitStruct.Multimode = LL_ADC_MULTI_INDEPENDENT;
+  LL_ADC_CommonInit(ADC123_COMMON, &ADCCommomInitStruct);
+
+  LL_ADC_Disable(ADC1);
+  while (LL_ADC_IsEnabled(ADC1))
+    ;
+
+  LL_ADC_InitTypeDef ADCInitStruct;
+  LL_ADC_StructInit(&ADCInitStruct);
+  ADCInitStruct.Resolution = LL_ADC_RESOLUTION_12B;
+  ADCInitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
+  ADCInitStruct.SequencersScanMode = LL_ADC_SEQ_SCAN_DISABLE;
+  LL_ADC_Init(ADC1, &ADCInitStruct);
+  LL_ADC_REG_InitTypeDef ADCRegInitStruct;
+  LL_ADC_REG_StructInit(&ADCRegInitStruct);
+  ADCRegInitStruct.ContinuousMode = LL_ADC_REG_CONV_SINGLE;
+  ADCRegInitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_NONE;
+  ADCRegInitStruct.TriggerSource = LL_ADC_REG_TRIG_EXT_TIM2_TRGO;
+  ADCRegInitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
+  ADCRegInitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
+  LL_ADC_REG_Init(ADC1, &ADCRegInitStruct);
+  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_0);
+  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_0,
+                                LL_ADC_SAMPLINGTIME_84CYCLES);
+  LL_ADC_EnableIT_EOCS(ADC1);
+  uint32_t encoded_priotity = NVIC_EncodePriority(priority_grouping, 0, 0);
+  NVIC_SetPriority(ADC_IRQn, encoded_priotity);
+  NVIC_EnableIRQ(ADC_IRQn);
+  LL_ADC_Enable(ADC1);
+  while (!LL_ADC_IsEnabled(ADC1))
+    ;
+  LL_ADC_REG_StartConversionExtTrig(ADC1, LL_ADC_REG_TRIG_EXT_RISING);
+}
+
+void initUART() {
+  LL_USART_InitTypeDef USARTInitStruct = {0};
+  LL_GPIO_InitTypeDef GPIOInitStruct = {0};
+  LL_USART_StructInit(&USARTInitStruct);
+  LL_GPIO_StructInit(&GPIOInitStruct);
+
+  /*
+      clocks
+  */
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_USART2);
+
+  /*
+      PA2 -> USART2_TX
+      PA3 -> USART2_RX
+  */
+
+  GPIOInitStruct.Pin = LL_GPIO_PIN_2 | LL_GPIO_PIN_3;
+  GPIOInitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
+  GPIOInitStruct.Speed = LL_GPIO_SPEED_FREQ_VERY_HIGH;
+  GPIOInitStruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIOInitStruct.Pull = LL_GPIO_PULL_UP;
+  GPIOInitStruct.Alternate = LL_GPIO_AF_7;
+
+  LL_GPIO_Init(GPIOA, &GPIOInitStruct);
+
+  /*
+      USART config
+  */
+
+  USARTInitStruct.BaudRate = 115200;
+  USARTInitStruct.DataWidth = LL_USART_DATAWIDTH_8B;
+  USARTInitStruct.StopBits = LL_USART_STOPBITS_1;
+  USARTInitStruct.Parity = LL_USART_PARITY_NONE;
+  USARTInitStruct.TransferDirection = LL_USART_DIRECTION_TX_RX;
+  USARTInitStruct.HardwareFlowControl = LL_USART_HWCONTROL_NONE;
+  USARTInitStruct.OverSampling = LL_USART_OVERSAMPLING_16;
+
+  LL_USART_Init(USART2, &USARTInitStruct);
+
+  LL_USART_Enable(USART2);
+}
+
+void ADC_IRQHandler() {
+  if (!LL_ADC_IsActiveFlag_EOCS(ADC1)) {
+    LL_ADC_ClearFlag_EOCS(ADC1);
+    uint16_t adc_value = LL_ADC_REG_ReadConversionData12(ADC1);
+    double current = decodeCurrent(adc_value);
+    controlCurrent(current);
   }
 }
-void initMotorStates() {
-  // Initialize the BLDC states like in Maschinen und Antriebe Skriptun page 136
-  // State A
-  MotorStates[0].L1 = STATE_HIGH;
-  MotorStates[0].L2 = STATE_LOW;
-  MotorStates[0].L3 = STATE_HIGHZ;
-  // State B
-  MotorStates[1].L1 = STATE_HIGH;
-  MotorStates[1].L2 = STATE_HIGHZ;
-  MotorStates[1].L3 = STATE_LOW;
-  // State C
-  MotorStates[2].L1 = STATE_HIGHZ;
-  MotorStates[2].L2 = STATE_HIGH;
-  MotorStates[2].L3 = STATE_LOW;
-  // State D
-  MotorStates[3].L1 = STATE_LOW;
-  MotorStates[3].L2 = STATE_HIGH;
-  MotorStates[3].L3 = STATE_HIGHZ;
-  // State E
-  MotorStates[4].L1 = STATE_LOW;
-  MotorStates[4].L2 = STATE_HIGHZ;
-  MotorStates[4].L3 = STATE_HIGH;
-  // State F
-  MotorStates[5].L1 = STATE_HIGHZ;
-  MotorStates[5].L2 = STATE_LOW;
-  MotorStates[5].L3 = STATE_HIGH;
+double decodeCurrent(uint16_t adc_value) {
+  // returns current in A for a given ADC value
+  double voltage = adc_value * CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE /
+                   CURRENT_SENSOR_ADC_FULL_SCALE;
+  double current = (voltage - 2.5) * 1e3 / CURRENT_SENSOR_SENSITIVITY;
+  return current;
 }
-void TIM1_UP_TIM10_IRQHandler() {
-  if (LL_TIM_IsActiveFlag_UPDATE(TIM1)) {
-    LL_TIM_ClearFlag_UPDATE(TIM1);
-    state_counter += 1;
-    if (state_counter > 5) {
-      state_counter = 0;
-    }
-    SetPinsFromState(&MotorStates[state_counter]);
-  }
+void controlCurrent(double current) {
+  printf("Current: %dmA\r\n", (int)(current * 1e3));
 }
+
 void SetPinsFromState(motorState_t *motorState) {
   writePin(EN_PORT, L1_EN_PIN, motorState->L1 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH1, motorState->L1 & 0b01);
 
   writePin(EN_PORT, L2_EN_PIN, motorState->L2 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH3, motorState->L2 & 0b01);
-
-  writePin(EN_PORT, L3_EN_PIN, motorState->L3 & 0b10);
-  setPWMstate(LL_TIM_CHANNEL_CH4, motorState->L2 & 0b01);
 }
 // Stes pin when anything otheer than 0 is given
 void setPWMstate(uint32_t channel, int state) {
@@ -224,5 +275,22 @@ void setPWMvalue(float pwm) {
   int ccr = (int)(PWM_ARR * pwm);
   LL_TIM_OC_SetCompareCH1(TIM3, ccr);
   LL_TIM_OC_SetCompareCH3(TIM3, ccr);
-  LL_TIM_OC_SetCompareCH4(TIM3, ccr);
+  // LL_TIM_OC_SetCompareCH4(TIM3, ccr);
 }
+void USARTSendBusyWaiting(char *msg, int len) {
+  for (int i = 0; i < len; i++) {
+    while (!LL_USART_IsActiveFlag_TXE(USART2))
+      ;
+    LL_USART_TransmitData8(USART2, msg[i]);
+  }
+}
+// hopefully makes USART work with printf
+int __io_putchar(int ch) {
+  while (!LL_USART_IsActiveFlag_TXE(USART2))
+    ;
+
+  LL_USART_TransmitData8(USART2, ch);
+
+  return ch;
+}
+int fputc(int ch, FILE *f) { return __io_putchar(ch); }
