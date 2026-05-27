@@ -51,8 +51,8 @@
 // Current Sensor
 //
 #define CURRENT_SENSOR_PORT GPIOA
-#define CURRENT_SENSOR_PIN LL_GPIO_PIN_0
-#define CURRENT_SENSOR_SENSITIVITY 185            // mV/A
+#define CURRENT_SENSOR_PIN LL_GPIO_PIN_5
+#define CURRENT_SENSOR_SENSITIVITY 185 * 2 // mV/A; 185 -> Datasheet; approx
 #define CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE 3.3 // V
 #define CURRENT_SENSOR_ADC_FULL_SCALE 0b111111111111
 
@@ -77,6 +77,7 @@ double decodeCurrent(uint16_t adc_value);
 void controlCurrent(double current);
 void USARTSendBusyWaiting(char *msg, int len);
 void initUART();
+double lowPass(double input);
 
 #endif // !MAIN_H
 #define MAIN_H

@@ -10,6 +10,15 @@
 #include <stdio.h>
 // #define N_MOTOR_STATES 6
 #define PWM_ARR 250
+#define LOWPASS_ORDER 10
+volatile double currentsensor_calibration_value = 0;
+double lowpass_array[LOWPASS_ORDER] = {0};
+double currentsensor_volatge = 0;
+double currentsensor_current = 0;
+int currentsensor_calibrating_zero = 1;
+int lowpass_index = 0;
+#define CURRENTSENSOR_CALIBRARION_VALUES 100
+int currentsensor_calibration_index = 0;
 // motorState_t MotorStates[N_MOTOR_STATES];
 // int state_counter = 0;
 // volatile uint16_t adc_current_val = 0;
@@ -18,6 +27,7 @@ int main() {
   //
   // Configure Clock
   //
+  // sysclk=84MHz
   SystemClock_Config();
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
@@ -78,24 +88,24 @@ int main() {
   /*
    * Set Timer for ADC COnversion
    */
-  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_TIM1);
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM2);
   LL_TIM_InitTypeDef TIM_InitStruct;
-  TIM_InitStruct.Prescaler = 840; // clk=100kHz -> T=10 us
-  TIM_InitStruct.Autoreload = 2;
+  TIM_InitStruct.Prescaler = 840 - 1; // clk=100kHz -> T=10 us
+  TIM_InitStruct.Autoreload = 20 - 1; // T=200us
   TIM_InitStruct.CounterMode = LL_TIM_COUNTERMODE_UP;
   TIM_InitStruct.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
   TIM_InitStruct.RepetitionCounter = 0;
-  LL_TIM_Init(TIM1, &TIM_InitStruct);
-  LL_TIM_EnableARRPreload(TIM1);
+  LL_TIM_Init(TIM2, &TIM_InitStruct);
+  LL_TIM_EnableARRPreload(TIM2);
   // LL_TIM_EnableIT_UPDATE(TIM1);
   LL_TIM_SetTriggerOutput(TIM2, LL_TIM_TRGO_UPDATE);
-  LL_TIM_EnableCounter(TIM1);
+  LL_TIM_EnableCounter(TIM2);
   /*
    * Define PWM Timer
    */
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM3);
-  TIM_InitStruct.Prescaler = 84;       // clk=1MHz
-  TIM_InitStruct.Autoreload = PWM_ARR; // clk=4kHz
+  TIM_InitStruct.Prescaler = 84 - 1;       // clk=1MHz
+  TIM_InitStruct.Autoreload = PWM_ARR - 1; // clk=4kHz
   LL_TIM_Init(TIM3, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM3);
   LL_TIM_EnableCounter(TIM3);
@@ -130,18 +140,34 @@ int main() {
   // NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
   USERLED_PORT->ODR |= USERLED_PIN;
   // USERLED_PORT->ODR &= ~USERLED_PIN;
+  while (currentsensor_calibrating_zero) {
+    __NOP();
+  }
   motorState_t mState;
   mState.L1 = STATE_HIGH;
   mState.L2 = STATE_LOW;
   SetPinsFromState(&mState);
-  setPWMvalue(0.25);
-
+  setPWMvalue(1);
+  double prev_voltage = 0;
+  double prev_current = 0;
   while (1) {
+    if (prev_voltage != currentsensor_volatge) {
+      prev_voltage = currentsensor_volatge;
+      //   // printf("Voltage: %dmV ", (int)(prev_voltage * 1e3));
+      // printf("Voltage: %dmV ", (int)(prev_voltage * 1e3));
+      printf("%d \r\n", (int)(prev_current * 1e3));
+      // printf("%d \r\n", (int)(currentsensor_calibrating_zero));
+    }
+    if (prev_current != currentsensor_current) {
+      prev_current = currentsensor_current;
+      // printf("Current: %dmA", (int)(prev_current * 1e3));
+      // printf("current %d \r\n", (int)(prev_current * 1e3));
+    }
   }
 }
 
 void initADC() {
-  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC);
+  LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC1);
   LL_ADC_CommonInitTypeDef ADCCommomInitStruct;
   LL_ADC_CommonStructInit(&ADCCommomInitStruct);
   ADCCommomInitStruct.CommonClock = LL_ADC_CLOCK_SYNC_PCLK_DIV4;
@@ -166,9 +192,9 @@ void initADC() {
   ADCRegInitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
   ADCRegInitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
   LL_ADC_REG_Init(ADC1, &ADCRegInitStruct);
-  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_0);
-  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_0,
-                                LL_ADC_SAMPLINGTIME_84CYCLES);
+  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_5);
+  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_5,
+                                LL_ADC_SAMPLINGTIME_480CYCLES);
   LL_ADC_EnableIT_EOCS(ADC1);
   uint32_t encoded_priotity = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(ADC_IRQn, encoded_priotity);
@@ -222,7 +248,7 @@ void initUART() {
 }
 
 void ADC_IRQHandler() {
-  if (!LL_ADC_IsActiveFlag_EOCS(ADC1)) {
+  if (LL_ADC_IsActiveFlag_EOCS(ADC1)) {
     LL_ADC_ClearFlag_EOCS(ADC1);
     uint16_t adc_value = LL_ADC_REG_ReadConversionData12(ADC1);
     double current = decodeCurrent(adc_value);
@@ -233,11 +259,40 @@ double decodeCurrent(uint16_t adc_value) {
   // returns current in A for a given ADC value
   double voltage = adc_value * CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE /
                    CURRENT_SENSOR_ADC_FULL_SCALE;
-  double current = (voltage - 2.5) * 1e3 / CURRENT_SENSOR_SENSITIVITY;
+  currentsensor_volatge = voltage;
+  if (currentsensor_calibrating_zero) {
+    currentsensor_calibration_value += voltage;
+    currentsensor_calibration_index++;
+    if (currentsensor_calibration_index >= CURRENTSENSOR_CALIBRARION_VALUES) {
+      currentsensor_calibrating_zero = 0;
+      currentsensor_calibration_value =
+          currentsensor_calibration_value / CURRENTSENSOR_CALIBRARION_VALUES;
+    }
+  }
+  // printf("Voltage: %dmV ", (int)(voltage * 1000));
+  double current = (voltage - currentsensor_calibration_value) * 1e3 /
+                   CURRENT_SENSOR_SENSITIVITY;
   return current;
 }
 void controlCurrent(double current) {
-  printf("Current: %dmA\r\n", (int)(current * 1e3));
+  // while (!LL_USART_IsActiveFlag_TXE(USART2))
+  // ;
+  // LL_USART_TransmitData8(USART2, 'A');
+  currentsensor_current = lowPass(current);
+
+  // printf("Current: %dmA\r\n", (int)(current * 1e3));
+}
+
+double lowPass(double input) {
+  lowpass_array[lowpass_index++] = input;
+  if (lowpass_index >= LOWPASS_ORDER) {
+    lowpass_index = 0;
+  }
+  double sum = 0;
+  for (int i = 0; i < LOWPASS_ORDER; i++) {
+    sum += lowpass_array[i];
+  }
+  return sum / LOWPASS_ORDER;
 }
 
 void SetPinsFromState(motorState_t *motorState) {
@@ -266,6 +321,9 @@ void EXTI15_10_IRQHandler() {
   if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_13)) {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_13);
     USERLED_PORT->ODR ^= USERLED_PIN;
+    while (!LL_USART_IsActiveFlag_TXE(USART2))
+      ;
+    LL_USART_TransmitData8(USART2, 'A');
   }
 }
 void setPWMvalue(float pwm) {
@@ -285,12 +343,20 @@ void USARTSendBusyWaiting(char *msg, int len) {
   }
 }
 // hopefully makes USART work with printf
-int __io_putchar(int ch) {
-  while (!LL_USART_IsActiveFlag_TXE(USART2))
-    ;
-
-  LL_USART_TransmitData8(USART2, ch);
-
-  return ch;
+int _write(int file, char *ptr, int len) {
+  for (int i = 0; i < len; i++) {
+    while (!LL_USART_IsActiveFlag_TXE(USART2))
+      ;
+    LL_USART_TransmitData8(USART2, ptr[i]);
+  }
+  return len;
 }
-int fputc(int ch, FILE *f) { return __io_putchar(ch); }
+// int __io_putchar(int ch) {
+//   while (!LL_USART_IsActiveFlag_TXE(USART2))
+//     ;
+//
+//   LL_USART_TransmitData8(USART2, ch);
+//
+//   return ch;
+// }
+// int fputc(int ch, FILE *f) { return __io_putchar(ch); }
