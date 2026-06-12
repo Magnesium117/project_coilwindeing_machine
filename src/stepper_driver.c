@@ -13,7 +13,6 @@
 #endif                /* ifdef HALFSTEPPING */
 #define STEP_TIME 500 // us
 #define STATE_CHANGE_CLOCK 10000
-// #define PWM_ARR 250
 typedef enum {
   COIL1_POSITIVE = ((0xFFFFFFFF << 16) | PIN_11) & ~(PIN_12 << 16),
   COIL1_NEGATIVE = ((0xFFFFFFFF << 16) | PIN_12) & ~(PIN_11 << 16),
@@ -74,36 +73,6 @@ void initStepperDriver() {
   LL_TIM_EnableARRPreload(TIM1);
   LL_TIM_EnableIT_UPDATE(TIM1);
   LL_TIM_DisableCounter(TIM1);
-  /*
-   * Define PWM Timer
-   */
-  // LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM3);
-  // TIM_InitStruct.Prescaler = 84;       // clk=1MHz
-  // TIM_InitStruct.Autoreload = PWM_ARR; // clk=4kHz
-  // LL_TIM_Init(TIM3, &TIM_InitStruct);
-  // LL_TIM_EnableARRPreload(TIM3);
-  // LL_TIM_EnableCounter(TIM3);
-  // LL_TIM_OC_InitTypeDef TIM_OC_InitStruct;
-  // TIM_OC_InitStruct.OCMode = LL_TIM_OCMODE_PWM1;
-  // TIM_OC_InitStruct.CompareValue = PWM_ARR / 2;
-  // TIM_OC_InitStruct.OCIdleState = LL_TIM_OCIDLESTATE_LOW;
-  // TIM_OC_InitStruct.OCNState = LL_TIM_OCSTATE_DISABLE;
-  // TIM_OC_InitStruct.OCState = LL_TIM_OCSTATE_ENABLE;
-  // TIM_OC_InitStruct.OCPolarity = LL_TIM_OCPOLARITY_HIGH;
-  // LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH1, &TIM_OC_InitStruct); // PC6
-  // // LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH2, &TIM_OC_InitStruct); // PC7
-  // LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH3, &TIM_OC_InitStruct); // PC8
-  // LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH4, &TIM_OC_InitStruct); // PC9
-  // LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH1);
-  // // LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH2);
-  // LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH3);
-  // LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH4);
-  //
-  // // LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH2);
-  // LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH1);
-  // LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH3);
-  // LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH4);
-  //
   NVIC_SetPriorityGrouping(priority_grouping);
   uint32_t encoded_priority = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
