@@ -1,8 +1,6 @@
 #ifndef CURRENT_CONTROL_H
 #define CURRENT_CONTROL_H
 #include "used_stmlibs.h"
-void init_current_control();
-void current_control_while();
 //
 // Motor Pins
 //
@@ -34,17 +32,7 @@ struct motorState_s {
   phaseState_t L2;
 };
 typedef struct motorState_s motorState_t;
-
-void setPWMvalue(float pwm);
-void writePin(GPIO_TypeDef *port, uint32_t pin, int value);
-void setPWMstate(uint32_t channel, int state);
-void initMotorStates();
-void SetPinsFromState(motorState_t *motorState);
-void initADC();
-double decodeCurrent(uint16_t adc_value);
-void controlCurrent(double current);
-void USARTSendBusyWaiting(char *msg, int len);
-void initUART();
-double lowPass(double input);
+void initCurrentControl();
+void currentControlWhile();
 
 #endif

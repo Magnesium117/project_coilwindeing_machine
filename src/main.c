@@ -1,6 +1,7 @@
 #include "main.h"
 #include "current_control.h"
 #include "globals.h"
+#include "stepper_driver.h"
 #include "stm32f446xx.h"
 #include "stm32f4xx_ll_adc.h"
 #include "stm32f4xx_ll_bus.h"
@@ -26,7 +27,8 @@ int main() {
   NVIC_SetPriorityGrouping(priority_grouping);
   initUART();
   initDebugPins();
-  init_current_control();
+  initCurrentControl();
+  initStepperDriver();
   while (1) {
   }
 }
@@ -124,4 +126,22 @@ int _write(int file, char *ptr, int len) {
     LL_USART_TransmitData8(USART2, ptr[i]);
   }
   return len;
+}
+// hopefully makes USART work with scanf
+int _read(int file, char *ptr, int len) {
+  int i = 0;
+
+  while (i < len) {
+    while (!(USART2->SR & USART_SR_RXNE))
+      ;
+
+    char c = USART2->DR;
+
+    ptr[i++] = c;
+
+    if (c == '\r' || c == '\n')
+      break;
+  }
+
+  return i;
 }
