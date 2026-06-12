@@ -5,9 +5,17 @@
 #define LOWPASS_ORDER 10
 #define SET_CURRENT 250 // mA
 #define K_ANTI_WINDUP 1000
+#define ENABLE_NEGATIVE_TOURQUE
+#ifdef ENABLE_NEGATIVE_TOURQUE
+#define MIN_OUTPUT -1
+#else
+#define MINMIN_OUTPUT 0
+#endif
 static volatile double state[2] = {0};
 static volatile double prev_state[1] = {0};
 static volatile double voltage_sat_diff = 0;
+static volatile double voltage = 0;
+static motorState_t mState = {0};
 
 void init_current_control() {
   /*
@@ -77,7 +85,6 @@ void init_current_control() {
   NVIC_SetPriority(EXTI15_10_IRQn, encoded_priority);
   NVIC_EnableIRQ(EXTI15_10_IRQn);
   USERLED_PORT->ODR |= USERLED_PIN;
-  motorState_t mState;
   mState.L1 = STATE_HIGH;
   mState.L2 = STATE_LOW;
   setPWMvalue(0);
@@ -100,19 +107,33 @@ void initADC() {
   LL_ADC_StructInit(&ADCInitStruct);
   ADCInitStruct.Resolution = LL_ADC_RESOLUTION_12B;
   ADCInitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
+#ifdef ENABLE_NEGATIVE_TOURQUE
+  ADCInitStruct.SequencersScanMode = LL_ADC_SEQ_SCAN_ENABLE;
+#else
   ADCInitStruct.SequencersScanMode = LL_ADC_SEQ_SCAN_DISABLE;
+#endif
   LL_ADC_Init(ADC1, &ADCInitStruct);
   LL_ADC_REG_InitTypeDef ADCRegInitStruct;
   LL_ADC_REG_StructInit(&ADCRegInitStruct);
   ADCRegInitStruct.ContinuousMode = LL_ADC_REG_CONV_SINGLE;
   ADCRegInitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_NONE;
   ADCRegInitStruct.TriggerSource = LL_ADC_REG_TRIG_EXT_TIM2_TRGO;
+#ifdef ENABLE_NEGATIVE_TOURQUE
+  ADCRegInitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_ENABLE_2RANKS;
+#else
   ADCRegInitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
+#endif
   ADCRegInitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
   LL_ADC_REG_Init(ADC1, &ADCRegInitStruct);
   LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_5);
   LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_5,
                                 LL_ADC_SAMPLINGTIME_480CYCLES);
+#ifdef ENABLE_NEGATIVE_TOURQUE
+  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_2, LL_ADC_CHANNEL_4);
+  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_4,
+                                LL_ADC_SAMPLINGTIME_480CYCLES);
+
+#endif
   LL_ADC_EnableIT_EOCS(ADC1);
   uint32_t encoded_priotity = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(ADC_IRQn, encoded_priotity);
@@ -126,27 +147,34 @@ void initADC() {
 void ADC_IRQHandler() {
   if (LL_ADC_IsActiveFlag_EOCS(ADC1)) {
     LL_ADC_ClearFlag_EOCS(ADC1);
-    uint16_t adc_value = LL_ADC_REG_ReadConversionData12(ADC1);
+    int32_t adc_value = LL_ADC_REG_ReadConversionData12(ADC1);
+#ifdef ENABLE_NEGATIVE_TOURQUE
+    if (voltage < 0) {
+      adc_value = -LL_ADC_REG_ReadConversionData12(ADC1);
+    } else {
+      LL_ADC_REG_ReadConversionData12(ADC1);
+    }
+#endif
     double current = decodeCurrent(adc_value);
     controlCurrent(current);
   }
 }
-double decodeCurrent(uint16_t adc_value) {
-  double voltage = adc_value * CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE /
-                   CURRENT_SENSOR_ADC_FULL_SCALE;
-  double current = (voltage) / CURRENT_SENSOR_SENSITIVITY;
+double decodeCurrent(int32_t adc_value) {
+  double meas_voltage = adc_value * CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE /
+                        CURRENT_SENSOR_ADC_FULL_SCALE;
+  double current = (meas_voltage) / CURRENT_SENSOR_SENSITIVITY;
   return current;
 }
 void controlCurrent(double current) {
-  double voltage = 0; // Voltage is normalized to 24V
+  voltage = 0; // Voltage is normalized to 24V
   double voltage_sat = 0;
   current = current * 1e3; // current in mA
   voltage = 0.00021201626441857968 * state[0] +
             -0.00020280817475870627 * state[1] +
             0.00010370610979448802 * (SET_CURRENT - current);
   voltage_sat = voltage;
-  if (voltage < 0) {
-    voltage_sat = 0;
+  if (voltage < MIN_OUTPUT) {
+    voltage_sat = MIN_OUTPUT;
   } else if (voltage > 1) {
     voltage_sat = 1;
   }
@@ -197,9 +225,22 @@ void setPWMvalue(float pwm) {
   if (pwm > 1) {
     pwm = 1;
   }
-  if (pwm < 0) {
-    pwm = 0;
+  if (pwm < MIN_OUTPUT) {
+    pwm = MIN_OUTPUT;
   }
+#ifdef ENABLE_NEGATIVE_TOURQUE
+  if (pwm >= 0 && (mState.L1 != STATE_HIGH || mState.L2 != STATE_LOW)) {
+    mState.L1 = STATE_HIGH;
+    mState.L2 = STATE_LOW;
+    SetPinsFromState(&mState);
+  }
+  if (pwm < 0 && (mState.L1 != STATE_LOW || mState.L2 != STATE_HIGH)) {
+    mState.L1 = STATE_LOW;
+    mState.L2 = STATE_HIGH;
+    pwm = -pwm;
+    SetPinsFromState(&mState);
+  }
+#endif
   int ccr = (int)(PWM_ARR * pwm);
   LL_TIM_OC_SetCompareCH1(TIM3, ccr);
   LL_TIM_OC_SetCompareCH3(TIM3, ccr);

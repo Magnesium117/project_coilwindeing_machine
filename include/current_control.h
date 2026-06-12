@@ -41,7 +41,7 @@ void setPWMstate(uint32_t channel, int state);
 void initMotorStates();
 void SetPinsFromState(motorState_t *motorState);
 void initADC();
-double decodeCurrent(uint16_t adc_value);
+double decodeCurrent(int32_t adc_value);
 void controlCurrent(double current);
 void USARTSendBusyWaiting(char *msg, int len);
 void initUART();
