@@ -107,25 +107,24 @@ void initADC() {
   LL_ADC_StructInit(&ADCInitStruct);
   ADCInitStruct.Resolution = LL_ADC_RESOLUTION_12B;
   ADCInitStruct.DataAlignment = LL_ADC_DATA_ALIGN_RIGHT;
-  ADCInitStruct.SequencersScanMode = LL_ADC_SEQ_SCAN_ENABLE;
+  ADCInitStruct.SequencersScanMode = LL_ADC_SEQ_SCAN_DISABLE;
   LL_ADC_Init(ADC1, &ADCInitStruct);
   LL_ADC_REG_InitTypeDef ADCRegInitStruct;
   LL_ADC_REG_StructInit(&ADCRegInitStruct);
   ADCRegInitStruct.ContinuousMode = LL_ADC_REG_CONV_SINGLE;
   ADCRegInitStruct.DMATransfer = LL_ADC_REG_DMA_TRANSFER_NONE;
   ADCRegInitStruct.TriggerSource = LL_ADC_REG_TRIG_EXT_TIM2_TRGO;
-  ADCRegInitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_ENABLE_2RANKS;
+  ADCRegInitStruct.SequencerLength = LL_ADC_REG_SEQ_SCAN_DISABLE;
   ADCRegInitStruct.SequencerDiscont = LL_ADC_REG_SEQ_DISCONT_DISABLE;
   LL_ADC_REG_Init(ADC1, &ADCRegInitStruct);
   LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_1, LL_ADC_CHANNEL_5);
-  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_2, LL_ADC_CHANNEL_6);
+  // LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_2, LL_ADC_CHANNEL_6);
   LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_5,
                                 LL_ADC_SAMPLINGTIME_480CYCLES);
-  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_5,
-                                LL_ADC_SAMPLINGTIME_480CYCLES);
+  // LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_6,
+  // LL_ADC_SAMPLINGTIME_480CYCLES);
 
-  LL_ADC_EnableIT_EOCS(
-      ADC1); // #TODO: make interrrupt trigger on only 1 conversion
+  LL_ADC_EnableIT_EOCS(ADC1);
   uint32_t encoded_priotity = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(ADC_IRQn, encoded_priotity);
   NVIC_EnableIRQ(ADC_IRQn);
