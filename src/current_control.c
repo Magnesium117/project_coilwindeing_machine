@@ -38,7 +38,11 @@ void init_current_control() {
   //
   GPIO_Initstruct.Mode = LL_GPIO_MODE_ANALOG;
   GPIO_Initstruct.Pull = LL_GPIO_PULL_NO;
+#ifdef ENABLE_NEGATIVE_TOURQUE
+  GPIO_Initstruct.Pin = CURRENT_SENSOR_PIN | CURRENT_SENSOR_NEGATIVE_PIN;
+#else
   GPIO_Initstruct.Pin = CURRENT_SENSOR_PIN;
+#endif
   LL_GPIO_Init(CURRENT_SENSOR_PORT, &GPIO_Initstruct);
   /*
    * Set Timer for ADC COnversion
@@ -129,8 +133,8 @@ void initADC() {
   LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_5,
                                 LL_ADC_SAMPLINGTIME_480CYCLES);
 #ifdef ENABLE_NEGATIVE_TOURQUE
-  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_2, LL_ADC_CHANNEL_4);
-  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_4,
+  LL_ADC_REG_SetSequencerRanks(ADC1, LL_ADC_REG_RANK_2, LL_ADC_CHANNEL_6);
+  LL_ADC_SetChannelSamplingTime(ADC1, LL_ADC_CHANNEL_6,
                                 LL_ADC_SAMPLINGTIME_480CYCLES);
 
 #endif
