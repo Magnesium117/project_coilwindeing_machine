@@ -28,8 +28,8 @@ typedef struct {
   coilState_t Coil2;
 } motorState_t;
 
-static volatile uint32_t nSteps = 0;
-static volatile uint16_t steps = 0;
+static volatile int nSteps = 0;
+static volatile int steps = 0;
 static motorState_t MotorStates[N_MOTOR_STATES];
 static volatile int state_counter = 0;
 
@@ -81,7 +81,7 @@ void initStepperDriver() {
   while (1) {
   }
 }
-void initMotorStates() {
+static void initMotorStates() {
   // Halfstepping
   //  state 1
   MotorStates[0].Coil1 = COIL1_POSITIVE;
@@ -108,24 +108,31 @@ void initMotorStates() {
   MotorStates[7].Coil1 = COIL1_OFF;
   MotorStates[7].Coil2 = COIL2_POSITIVE;
 }
-void Step(uint32_t N) { nSteps += N; }
+void Step(int N) { nSteps += N; }
 void TIM1_UP_TIM10_IRQHandler() {
   if (LL_TIM_IsActiveFlag_UPDATE(TIM1)) {
+    LL_TIM_ClearFlag_UPDATE(TIM1);
     if (steps < nSteps) {
-      LL_TIM_ClearFlag_UPDATE(TIM1);
       state_counter += 1;
       if (state_counter >= N_MOTOR_STATES) {
         state_counter = 0;
       }
       SetPinsFromState(&MotorStates[state_counter]);
       steps++;
+    } else if (steps > nSteps) {
+      state_counter -= 1;
+      if (state_counter < 0) {
+        state_counter = N_MOTOR_STATES - 1;
+      }
+      SetPinsFromState(&MotorStates[state_counter]);
+      steps--;
     } else {
       steps = 0;
       nSteps = 0;
     }
   }
 }
-void SetPinsFromState(motorState_t *motorState) {
+static void SetPinsFromState(motorState_t *motorState) {
   COIL1_PORT->ODR |= motorState->Coil1 & 0xFFFF;
   COIL2_PORT->ODR |= motorState->Coil2 & 0xFFFF;
   COIL1_PORT->ODR &= (motorState->Coil1 >> 16) & 0xFFFF;

@@ -11,7 +11,7 @@
 #define PIN_12 LL_GPIO_PIN_2
 #define PIN_21 LL_GPIO_PIN_2
 #define PIN_22 LL_GPIO_PIN_3
-void Step(uint32_t N);
+void Step(int N);
 void initStepperDriver();
 
 #endif // !STEPPER_DRIVER_H
