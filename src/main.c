@@ -64,6 +64,7 @@ void EXTI15_10_IRQHandler() {
   if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_13)) {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_13);
     USERLED_PORT->ODR ^= USERLED_PIN;
+    Step(-100);
     while (!LL_USART_IsActiveFlag_TXE(USART2))
       ;
     LL_USART_TransmitData8(USART2, 'A');

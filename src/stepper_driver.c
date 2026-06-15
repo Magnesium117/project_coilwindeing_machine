@@ -10,8 +10,8 @@
 #define HALFSTEPPING
 #ifdef HALFSTEPPING
 #define N_MOTOR_STATES 8
-#endif                /* ifdef HALFSTEPPING */
-#define STEP_TIME 500 // us
+#endif                 /* ifdef HALFSTEPPING */
+#define STEP_TIME 1000 // us
 #define STATE_CHANGE_CLOCK 10000
 typedef enum {
   COIL1_POSITIVE = ((0xFFFFFFFF << 16) | PIN_11) & ~(PIN_12 << 16),
@@ -72,7 +72,7 @@ void initStepperDriver() {
   LL_TIM_Init(TIM1, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM1);
   LL_TIM_EnableIT_UPDATE(TIM1);
-  LL_TIM_DisableCounter(TIM1);
+  LL_TIM_EnableCounter(TIM1);
   NVIC_SetPriorityGrouping(priority_grouping);
   uint32_t encoded_priority = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
