@@ -199,6 +199,6 @@ void TIM1_CC_IRQHandler(void) {
 
     hx_clock_cycles++;
   } else {
-    return 0;
+    return;
   }
 }
