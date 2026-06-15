@@ -26,8 +26,8 @@ void initCurrentControl() {
   GPIO_Initstruct.Pull = LL_GPIO_PULL_NO;
   GPIO_Initstruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_Initstruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
-  GPIO_Initstruct.Pin = L1_EN_PIN | L2_EN_PIN;
-  LL_GPIO_Init(EN_PORT, &GPIO_Initstruct);
+  // GPIO_Initstruct.Pin = L1_EN_PIN | L2_EN_PIN;
+  // LL_GPIO_Init(EN_PORT, &GPIO_Initstruct);
   GPIO_Initstruct.Mode = LL_GPIO_MODE_ALTERNATE;
   GPIO_Initstruct.Alternate = LL_GPIO_AF_2;
   GPIO_Initstruct.Pin = L1_SIG_PIN | L2_SIG_PIN; // | LL_GPIO_PIN_7;
@@ -91,7 +91,7 @@ void initCurrentControl() {
   SetPinsFromState(&mState);
 }
 // void current_control_while() {}
-void initADC() {
+static void initADC() {
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC1);
   LL_ADC_CommonInitTypeDef ADCCommomInitStruct;
   LL_ADC_CommonStructInit(&ADCCommomInitStruct);
@@ -142,13 +142,13 @@ void ADC_IRQHandler() {
     controlCurrent(current);
   }
 }
-double decodeCurrent(uint16_t adc_value) {
+static double decodeCurrent(uint16_t adc_value) {
   double voltage = adc_value * CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE /
                    CURRENT_SENSOR_ADC_FULL_SCALE;
   double current = (voltage) / CURRENT_SENSOR_SENSITIVITY;
   return current;
 }
-void controlCurrent(double current) {
+static void controlCurrent(double current) {
   double voltage = 0; // Voltage is normalized to 24V
   double voltage_sat = 0;
   current = current * 1e3; // current in mA
@@ -181,30 +181,30 @@ void controlCurrent(double current) {
 //   return sum / LOWPASS_ORDER;
 // }
 
-void SetPinsFromState(motorState_t *motorState) {
-  writePin(EN_PORT, L1_EN_PIN, motorState->L1 & 0b10);
+static void SetPinsFromState(motorState_t *motorState) {
+  // writePin(EN_PORT, L1_EN_PIN, motorState->L1 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH1, motorState->L1 & 0b01);
 
-  writePin(EN_PORT, L2_EN_PIN, motorState->L2 & 0b10);
+  // writePin(EN_PORT, L2_EN_PIN, motorState->L2 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH3, motorState->L2 & 0b01);
 }
 // Stes pin when anything otheer than 0 is given
-void setPWMstate(uint32_t channel, int state) {
+static void setPWMstate(uint32_t channel, int state) {
   if (state == 0) {
     LL_TIM_CC_DisableChannel(TIM3, channel);
   } else {
     LL_TIM_CC_EnableChannel(TIM3, channel);
   }
 }
-void writePin(GPIO_TypeDef *port, uint32_t pin, int value) {
-  if (value == 0) {
-    port->ODR &= ~pin;
-  } else {
-    port->ODR |= pin;
-  }
-}
+// static void writePin(GPIO_TypeDef *port, uint32_t pin, int value) {
+//   if (value == 0) {
+//     port->ODR &= ~pin;
+//   } else {
+//     port->ODR |= pin;
+//   }
+// }
 
-void setPWMvalue(float pwm) {
+static void setPWMvalue(float pwm) {
   if (pwm > 1) {
     pwm = 1;
   }

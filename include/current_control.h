@@ -5,13 +5,13 @@
 // Motor Pins
 //
 #define SIG_PORT GPIOC // Pins 6 8
-#define EN_PORT GPIOB  // Pins 1 2
+// #define EN_PORT GPIOB  // Pins 1 2
 #define L1_SIG_PIN LL_GPIO_PIN_6
 // 13 und 14 sind die JTAG Pins -> man kann dann nicht gescheit
 // uploaden
-#define L1_EN_PIN LL_GPIO_PIN_1
+// #define L1_EN_PIN LL_GPIO_PIN_1
 #define L2_SIG_PIN LL_GPIO_PIN_8
-#define L2_EN_PIN LL_GPIO_PIN_2
+// #define L2_EN_PIN LL_GPIO_PIN_2
 
 //
 // Current Sensor
