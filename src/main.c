@@ -29,7 +29,9 @@ int main() {
   initDebugPins();
   initCurrentControl();
   initStepperDriver();
+  void hx711_init(void);
   while (1) {
+    void hx711_while();
   }
 }
 void initDebugPins() {

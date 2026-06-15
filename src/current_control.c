@@ -9,7 +9,7 @@ static volatile double state[2] = {0};
 static volatile double prev_state[1] = {0};
 static volatile double voltage_sat_diff = 0;
 static void setPWMvalue(float pwm);
-static void writePin(GPIO_TypeDef *port, uint32_t pin, int value);
+// static void writePin(GPIO_TypeDef *port, uint32_t pin, int value);
 static void setPWMstate(uint32_t channel, int state);
 static void SetPinsFromState(motorState_t *motorState);
 static void initADC();
