@@ -9,7 +9,6 @@
 
 #define HX711_SCK_PORT GPIOC
 #define HX711_SCK_PIN LL_GPIO_PIN_12
-
 // 1. Declare variables as 'extern'
 extern volatile int32_t load1;
 extern volatile int32_t load2;
@@ -18,6 +17,5 @@ extern volatile uint8_t data_ready2;
 
 // 2. Declare function prototypes
 void hx711_init(void);
-void hx711_while();
 
 #endif /* HX711_H */

@@ -2,7 +2,6 @@
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_tim.h"
-#include <stdio.h>
 
 volatile int32_t load1 = 0;
 volatile int32_t load2 = 0;
@@ -15,9 +14,6 @@ static volatile uint8_t hx_clock_cycles = 0;
 
 static volatile uint32_t hx_temp_data1 = 0;
 static volatile uint32_t hx_temp_data2 = 0;
-
-static volatile int32_t prev_load1 = 0;
-static volatile int32_t prev_load2 = 0;
 
 void hx711_init(void) {
   LL_GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -73,11 +69,6 @@ void hx711_init(void) {
   NVIC_EnableIRQ(TIM1_CC_IRQn);
 
   LL_TIM_EnableCounter(TIM1);
-}
-void hx711_while() {
-  if (load1 != prev_load1 || load2 != prev_load2) {
-    printf("%d,%d\r\n", load1, load2);
-  }
 }
 
 /*

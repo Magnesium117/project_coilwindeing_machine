@@ -7,20 +7,29 @@
 #include "stm32f4xx_ll_tim.h"
 #include "stm32f4xx_ll_utils.h"
 #include <stdint.h>
+#define PWM_ARR 250
+#define PWM_FREQ 10000000 // #Hz //TIMER frequence of PWM
+#define PWM_ON 80
 #define HALFSTEPPING
 #ifdef HALFSTEPPING
 #define N_MOTOR_STATES 8
 #endif                 /* ifdef HALFSTEPPING */
 #define STEP_TIME 1000 // us
 #define STATE_CHANGE_CLOCK 10000
+// Optimised typedef for non pwm mode
+// typedef enum {
+//   COIL1_POSITIVE = ((0xFFFFFFFF << 16) | PIN_11) & ~(PIN_12 << 16),
+//   COIL1_NEGATIVE = ((0xFFFFFFFF << 16) | PIN_12) & ~(PIN_11 << 16),
+//   COIL1_OFF = (0xFFFFFFFF << 16) & ~((PIN_11 | PIN_12) << 16),
+//   COIL2_POSITIVE = ((0xFFFFFFFF << 16) | PIN_21) & ~(PIN_22 << 16),
+//   COIL2_NEGATIVE = ((0xFFFFFFFF << 16) | PIN_22) & ~(PIN_21 << 16),
+//   COIL2_OFF = (0xFFFFFFFF << 16) & ~((PIN_21 | PIN_22) << 16),
+//
+// } coilState_t;
 typedef enum {
-  COIL1_POSITIVE = ((0xFFFFFFFF << 16) | PIN_11) & ~(PIN_12 << 16),
-  COIL1_NEGATIVE = ((0xFFFFFFFF << 16) | PIN_12) & ~(PIN_11 << 16),
-  COIL1_OFF = (0xFFFFFFFF << 16) & ~((PIN_11 | PIN_12) << 16),
-  COIL2_POSITIVE = ((0xFFFFFFFF << 16) | PIN_21) & ~(PIN_22 << 16),
-  COIL2_NEGATIVE = ((0xFFFFFFFF << 16) | PIN_22) & ~(PIN_21 << 16),
-  COIL2_OFF = (0xFFFFFFFF << 16) & ~((PIN_21 | PIN_22) << 16),
-
+  COIL_POSITIVE = 0b10,
+  COIL_NEGATIVE = 0b01,
+  COIL_OFF = 0b00,
 } coilState_t;
 
 typedef struct {
@@ -47,13 +56,14 @@ void initStepperDriver() {
   /*
    * Config GPIOS For Motor
    */
-  GPIO_Initstruct.Mode = LL_GPIO_MODE_OUTPUT;
+  GPIO_Initstruct.Mode = LL_GPIO_MODE_ALTERNATE;
   GPIO_Initstruct.Pull = LL_GPIO_PULL_NO;
   GPIO_Initstruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
   GPIO_Initstruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
   GPIO_Initstruct.Pin = PIN_11 | PIN_12;
+  GPIO_Initstruct.Alternate = LL_GPIO_AF_2;
   LL_GPIO_Init(COIL1_PORT, &GPIO_Initstruct);
-  GPIO_Initstruct.Mode = LL_GPIO_MODE_OUTPUT;
+  // GPIO_Initstruct.Mode = LL_GPIO_MODE_OUTPUT;
   // GPIO_Initstruct.Alternate = LL_GPIO_AF_2;
   GPIO_Initstruct.Pin = PIN_21 | PIN_22;
   LL_GPIO_Init(COIL2_PORT, &GPIO_Initstruct);
@@ -73,6 +83,39 @@ void initStepperDriver() {
   LL_TIM_EnableARRPreload(TIM1);
   LL_TIM_EnableIT_UPDATE(TIM1);
   LL_TIM_EnableCounter(TIM1);
+  /*
+   * Define PWM Timer
+   */
+  LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM4);
+  TIM_InitStruct.Prescaler = SYSCLK / PWM_FREQ - 1; // clk=10MHz
+  TIM_InitStruct.Autoreload = PWM_ARR - 1;          // clk=40kHz
+  LL_TIM_Init(TIM3, &TIM_InitStruct);
+  LL_TIM_EnableARRPreload(TIM4);
+  LL_TIM_EnableCounter(TIM4);
+  LL_TIM_OC_InitTypeDef TIM_OC_InitStruct;
+  TIM_OC_InitStruct.OCMode = LL_TIM_OCMODE_PWM1;
+  TIM_OC_InitStruct.CompareValue = PWM_ON;
+  TIM_OC_InitStruct.OCIdleState = LL_TIM_OCIDLESTATE_LOW;
+  TIM_OC_InitStruct.OCNState = LL_TIM_OCSTATE_DISABLE;
+  TIM_OC_InitStruct.OCState = LL_TIM_OCSTATE_ENABLE;
+  TIM_OC_InitStruct.OCPolarity = LL_TIM_OCPOLARITY_HIGH;
+  // PB6 -> Stepper PWM
+  LL_TIM_OC_Init(TIM4, LL_TIM_CHANNEL_CH1, &TIM_OC_InitStruct);
+  LL_TIM_OC_EnablePreload(TIM4, LL_TIM_CHANNEL_CH1);
+  LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH1);
+  // PB7 -> Stepper PWM
+  LL_TIM_OC_Init(TIM4, LL_TIM_CHANNEL_CH2, &TIM_OC_InitStruct);
+  LL_TIM_OC_EnablePreload(TIM4, LL_TIM_CHANNEL_CH2);
+  LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH2);
+  // PB8 -> Stepper PWM
+  LL_TIM_OC_Init(TIM4, LL_TIM_CHANNEL_CH3, &TIM_OC_InitStruct);
+  LL_TIM_OC_EnablePreload(TIM4, LL_TIM_CHANNEL_CH3);
+  LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH3);
+  // PB9 -> Stepper PWM
+  LL_TIM_OC_Init(TIM4, LL_TIM_CHANNEL_CH4, &TIM_OC_InitStruct);
+  LL_TIM_OC_EnablePreload(TIM4, LL_TIM_CHANNEL_CH4);
+  LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH4);
+
   NVIC_SetPriorityGrouping(priority_grouping);
   uint32_t encoded_priority = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
@@ -84,29 +127,29 @@ void initStepperDriver() {
 static void initMotorStates() {
   // Halfstepping
   //  state 1
-  MotorStates[0].Coil1 = COIL1_POSITIVE;
-  MotorStates[0].Coil2 = COIL2_POSITIVE;
+  MotorStates[0].Coil1 = COIL_POSITIVE;
+  MotorStates[0].Coil2 = COIL_POSITIVE;
   // state 2
-  MotorStates[1].Coil1 = COIL1_POSITIVE;
-  MotorStates[1].Coil2 = COIL2_OFF;
+  MotorStates[1].Coil1 = COIL_POSITIVE;
+  MotorStates[1].Coil2 = COIL_OFF;
   // state 3
-  MotorStates[2].Coil1 = COIL1_POSITIVE;
-  MotorStates[2].Coil2 = COIL2_NEGATIVE;
+  MotorStates[2].Coil1 = COIL_POSITIVE;
+  MotorStates[2].Coil2 = COIL_NEGATIVE;
   // state 4
-  MotorStates[3].Coil1 = COIL1_OFF;
-  MotorStates[3].Coil2 = COIL2_NEGATIVE;
+  MotorStates[3].Coil1 = COIL_OFF;
+  MotorStates[3].Coil2 = COIL_NEGATIVE;
   // state 5
-  MotorStates[4].Coil1 = COIL1_NEGATIVE;
-  MotorStates[4].Coil2 = COIL2_NEGATIVE;
+  MotorStates[4].Coil1 = COIL_NEGATIVE;
+  MotorStates[4].Coil2 = COIL_NEGATIVE;
   // state 6
-  MotorStates[5].Coil1 = COIL1_NEGATIVE;
-  MotorStates[5].Coil2 = COIL2_OFF;
+  MotorStates[5].Coil1 = COIL_NEGATIVE;
+  MotorStates[5].Coil2 = COIL_OFF;
   // state 7
-  MotorStates[6].Coil1 = COIL1_NEGATIVE;
-  MotorStates[6].Coil2 = COIL2_POSITIVE;
+  MotorStates[6].Coil1 = COIL_NEGATIVE;
+  MotorStates[6].Coil2 = COIL_POSITIVE;
   // state 8
-  MotorStates[7].Coil1 = COIL1_OFF;
-  MotorStates[7].Coil2 = COIL2_POSITIVE;
+  MotorStates[7].Coil1 = COIL_OFF;
+  MotorStates[7].Coil2 = COIL_POSITIVE;
 }
 void Step(int N) { nSteps += N; }
 void TIM1_UP_TIM10_IRQHandler() {
@@ -132,9 +175,34 @@ void TIM1_UP_TIM10_IRQHandler() {
     }
   }
 }
+// optimized way for non pwm
+// static void SetPinsFromState(motorState_t *motorState) {
+//   COIL1_PORT->ODR |= motorState->Coil1 & 0xFFFF;
+//   COIL2_PORT->ODR |= motorState->Coil2 & 0xFFFF;
+//   COIL1_PORT->ODR &= (motorState->Coil1 >> 16) & 0xFFFF;
+//   COIL2_PORT->ODR &= (motorState->Coil2 >> 16) & 0xFFFF;
+// }
 static void SetPinsFromState(motorState_t *motorState) {
-  COIL1_PORT->ODR |= motorState->Coil1 & 0xFFFF;
-  COIL2_PORT->ODR |= motorState->Coil2 & 0xFFFF;
-  COIL1_PORT->ODR &= (motorState->Coil1 >> 16) & 0xFFFF;
-  COIL2_PORT->ODR &= (motorState->Coil2 >> 16) & 0xFFFF;
+  if ((motorState->Coil1 & 0b10) != 0) {
+    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+  } else {
+    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+  }
+  if ((motorState->Coil1 & 0b01) != 0) {
+    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH2);
+  } else {
+    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH2);
+  }
+
+  if ((motorState->Coil1 & 0b10) != 0) {
+    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH3);
+  } else {
+    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH3);
+  }
+
+  if ((motorState->Coil1 & 0b01) != 0) {
+    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH4);
+  } else {
+    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH4);
+  }
 }

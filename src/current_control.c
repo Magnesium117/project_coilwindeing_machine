@@ -2,6 +2,7 @@
 #include "globals.h"
 #include "main.h"
 #define PWM_ARR 250
+#define PWM_FREQ 10000000 // TIMER frequence of PWM
 #define LOWPASS_ORDER 10
 #define SET_CURRENT 250 // mA
 #define K_ANTI_WINDUP 1000
@@ -58,8 +59,8 @@ void initCurrentControl() {
    * Define PWM Timer
    */
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM3);
-  TIM_InitStruct.Prescaler = 84 - 1;       // clk=1MHz
-  TIM_InitStruct.Autoreload = PWM_ARR - 1; // clk=4kHz
+  TIM_InitStruct.Prescaler = SYSCLK / PWM_FREQ - 1; // clk=10MHz
+  TIM_InitStruct.Autoreload = PWM_ARR - 1;          // clk=40kHz
   LL_TIM_Init(TIM3, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM3);
   LL_TIM_EnableCounter(TIM3);
@@ -70,12 +71,13 @@ void initCurrentControl() {
   TIM_OC_InitStruct.OCNState = LL_TIM_OCSTATE_DISABLE;
   TIM_OC_InitStruct.OCState = LL_TIM_OCSTATE_ENABLE;
   TIM_OC_InitStruct.OCPolarity = LL_TIM_OCPOLARITY_HIGH;
-  LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH1, &TIM_OC_InitStruct); // PC6
-  LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH3, &TIM_OC_InitStruct); // PC8
+  // PC6 -> Current control
+  LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH1, &TIM_OC_InitStruct);
   LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH1);
-  LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH3);
-
   LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+  // PC8 -> current control
+  LL_TIM_OC_Init(TIM3, LL_TIM_CHANNEL_CH3, &TIM_OC_InitStruct);
+  LL_TIM_OC_EnablePreload(TIM3, LL_TIM_CHANNEL_CH3);
   LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH3);
 
   initADC();
