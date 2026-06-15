@@ -89,7 +89,7 @@ void initStepperDriver() {
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM4);
   TIM_InitStruct.Prescaler = SYSCLK / PWM_FREQ - 1; // clk=10MHz
   TIM_InitStruct.Autoreload = PWM_ARR - 1;          // clk=40kHz
-  LL_TIM_Init(TIM3, &TIM_InitStruct);
+  LL_TIM_Init(TIM4, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM4);
   LL_TIM_EnableCounter(TIM4);
   LL_TIM_OC_InitTypeDef TIM_OC_InitStruct;
@@ -121,8 +121,6 @@ void initStepperDriver() {
   NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
   NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
   SetPinsFromState(&MotorStates[state_counter]);
-  while (1) {
-  }
 }
 static void initMotorStates() {
   // Halfstepping
@@ -184,25 +182,25 @@ void TIM1_UP_TIM10_IRQHandler() {
 // }
 static void SetPinsFromState(motorState_t *motorState) {
   if ((motorState->Coil1 & 0b10) != 0) {
-    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+    LL_TIM_CC_EnableChannel(TIM4, LL_TIM_CHANNEL_CH1);
   } else {
-    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH1);
+    LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH1);
   }
   if ((motorState->Coil1 & 0b01) != 0) {
-    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH2);
+    LL_TIM_CC_EnableChannel(TIM4, LL_TIM_CHANNEL_CH2);
   } else {
-    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH2);
+    LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH2);
   }
 
-  if ((motorState->Coil1 & 0b10) != 0) {
-    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH3);
+  if ((motorState->Coil2 & 0b10) != 0) {
+    LL_TIM_CC_EnableChannel(TIM4, LL_TIM_CHANNEL_CH3);
   } else {
-    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH3);
+    LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH3);
   }
 
-  if ((motorState->Coil1 & 0b01) != 0) {
-    LL_TIM_CC_EnableChannel(TIM3, LL_TIM_CHANNEL_CH4);
+  if ((motorState->Coil2 & 0b01) != 0) {
+    LL_TIM_CC_EnableChannel(TIM4, LL_TIM_CHANNEL_CH4);
   } else {
-    LL_TIM_CC_DisableChannel(TIM3, LL_TIM_CHANNEL_CH4);
+    LL_TIM_CC_DisableChannel(TIM4, LL_TIM_CHANNEL_CH4);
   }
 }
