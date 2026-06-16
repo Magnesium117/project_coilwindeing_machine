@@ -9,7 +9,7 @@
 #include <stdint.h>
 #define PWM_ARR 250
 #define PWM_FREQ 10000000 // #Hz //TIMER frequence of PWM
-#define PWM_ON 80
+#define PWM_ON 70
 #define HALFSTEPPING
 #ifdef HALFSTEPPING
 #define N_MOTOR_STATES 8
