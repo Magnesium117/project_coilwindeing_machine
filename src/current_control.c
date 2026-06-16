@@ -4,7 +4,7 @@
 #define PWM_ARR 250
 #define PWM_FREQ 10000000 // TIMER frequence of PWM
 #define LOWPASS_ORDER 10
-#define SET_CURRENT 250 // mA
+#define SET_CURRENT 150 // mA
 #define K_ANTI_WINDUP 1000
 static volatile double state[2] = {0};
 static volatile double prev_state[1] = {0};
@@ -17,7 +17,8 @@ static void initADC();
 static double decodeCurrent(uint16_t adc_value);
 static void controlCurrent(double current);
 
-void initCurrentControl() {
+void initCurrentControl()
+{
   /*
    * COnfig GPIOS For Motor
    */
@@ -93,7 +94,8 @@ void initCurrentControl() {
   SetPinsFromState(&mState);
 }
 // void current_control_while() {}
-static void initADC() {
+static void initADC()
+{
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC1);
   LL_ADC_CommonInitTypeDef ADCCommomInitStruct;
   LL_ADC_CommonStructInit(&ADCCommomInitStruct);
@@ -136,21 +138,25 @@ static void initADC() {
   LL_ADC_REG_StartConversionExtTrig(ADC1, LL_ADC_REG_TRIG_EXT_RISING);
 }
 
-void ADC_IRQHandler() {
-  if (LL_ADC_IsActiveFlag_EOCS(ADC1)) {
+void ADC_IRQHandler()
+{
+  if (LL_ADC_IsActiveFlag_EOCS(ADC1))
+  {
     LL_ADC_ClearFlag_EOCS(ADC1);
     uint16_t adc_value = LL_ADC_REG_ReadConversionData12(ADC1);
     double current = decodeCurrent(adc_value);
     controlCurrent(current);
   }
 }
-static double decodeCurrent(uint16_t adc_value) {
+static double decodeCurrent(uint16_t adc_value)
+{
   double voltage = adc_value * CURRENT_SENSOR_ADC_FULL_SCALE_VOLTAGE /
                    CURRENT_SENSOR_ADC_FULL_SCALE;
   double current = (voltage) / CURRENT_SENSOR_SENSITIVITY;
   return current;
 }
-static void controlCurrent(double current) {
+static void controlCurrent(double current)
+{
   double voltage = 0; // Voltage is normalized to 24V
   double voltage_sat = 0;
   current = current * 1e3; // current in mA
@@ -158,9 +164,12 @@ static void controlCurrent(double current) {
             -0.00020280817475870627 * state[1] +
             0.00010370610979448802 * (SET_CURRENT - current);
   voltage_sat = voltage;
-  if (voltage < 0) {
+  if (voltage < 0)
+  {
     voltage_sat = 0;
-  } else if (voltage > 1) {
+  }
+  else if (voltage > 1)
+  {
     voltage_sat = 1;
   }
   prev_state[0] = state[0];
@@ -183,7 +192,8 @@ static void controlCurrent(double current) {
 //   return sum / LOWPASS_ORDER;
 // }
 
-static void SetPinsFromState(motorState_t *motorState) {
+static void SetPinsFromState(motorState_t *motorState)
+{
   // writePin(EN_PORT, L1_EN_PIN, motorState->L1 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH1, motorState->L1 & 0b01);
 
@@ -191,10 +201,14 @@ static void SetPinsFromState(motorState_t *motorState) {
   setPWMstate(LL_TIM_CHANNEL_CH3, motorState->L2 & 0b01);
 }
 // Stes pin when anything otheer than 0 is given
-static void setPWMstate(uint32_t channel, int state) {
-  if (state == 0) {
+static void setPWMstate(uint32_t channel, int state)
+{
+  if (state == 0)
+  {
     LL_TIM_CC_DisableChannel(TIM3, channel);
-  } else {
+  }
+  else
+  {
     LL_TIM_CC_EnableChannel(TIM3, channel);
   }
 }
@@ -206,11 +220,14 @@ static void setPWMstate(uint32_t channel, int state) {
 //   }
 // }
 
-static void setPWMvalue(float pwm) {
-  if (pwm > 1) {
+static void setPWMvalue(float pwm)
+{
+  if (pwm > 1)
+  {
     pwm = 1;
   }
-  if (pwm < 0) {
+  if (pwm < 0)
+  {
     pwm = 0;
   }
   int ccr = (int)(PWM_ARR * pwm);
