@@ -2,6 +2,7 @@
 #include "current_control.h"
 #include "globals.h"
 #include "stepper_driver.h"
+#include "hx711.h"
 #include "stm32f446xx.h"
 #include "stm32f4xx_ll_adc.h"
 #include "stm32f4xx_ll_bus.h"
@@ -25,13 +26,18 @@ int main() {
   // Set NVIC Priority Grouping
   //
   NVIC_SetPriorityGrouping(priority_grouping);
+  hx711_init();
+  hx711_zero();
   initUART();
   initDebugPins();
   initCurrentControl();
   initStepperDriver();
-  // hx711_init(void);
+  
   while (1) {
-    // hx711_while();
+    if (data_ready1) {
+      data_ready1 = 0;
+      printf("%ld,%ld\r\n", load1, load2);
+    }
   }
 }
 void initDebugPins() {
