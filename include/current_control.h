@@ -34,5 +34,5 @@ struct motorState_s {
 typedef struct motorState_s motorState_t;
 void initCurrentControl();
 void currentControlWhile();
-
+void setCurrent(double current) ;
 #endif

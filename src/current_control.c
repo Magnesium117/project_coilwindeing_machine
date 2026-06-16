@@ -4,7 +4,7 @@
 #define PWM_ARR 250
 #define PWM_FREQ 10000000 // TIMER frequence of PWM
 #define LOWPASS_ORDER 10
-#define SET_CURRENT 250 // mA
+//#define SET_CURRENT 250 // mA
 #define K_ANTI_WINDUP 1000
 static volatile double state[2] = {0};
 static volatile double prev_state[1] = {0};
@@ -16,6 +16,11 @@ static void SetPinsFromState(motorState_t *motorState);
 static void initADC();
 static double decodeCurrent(uint16_t adc_value);
 static void controlCurrent(double current);
+static double SET_CURRENT = 250;
+
+void setCurrent(double current) {
+  SET_CURRENT = current;}
+
 
 void initCurrentControl() {
   /*

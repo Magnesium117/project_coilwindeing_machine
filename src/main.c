@@ -12,7 +12,9 @@
 #include "stm32f4xx_ll_utils.h"
 #include <stdint.h>
 #include <stdio.h>
+
 int main() {
+  int32_t factor = 0;
   //
   // Configure Clock
   //
@@ -36,7 +38,10 @@ int main() {
   while (1) {
     if (data_ready1) {
       data_ready1 = 0;
-      printf("%ld,%ld\r\n", load1, load2);
+      factor = (load1+load2)/660600;
+      factor = factor<-1.25?-1.25:factor;
+      setCurrent(factor<0?200*(1.25+factor):250);
+      printf("%ld\r\n", load1+load2);
     }
   }
 }
