@@ -14,7 +14,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
-int main() {
+int main()
+{
   //
   // Configure Clock
   //
@@ -36,13 +37,15 @@ int main() {
   initStepperDriver();
   encoder_init();
 
-  while (1) {
+  while (1)
+  {
     encoderWhile();
     hx711While();
   }
 }
 
-void initDebugPins() {
+void initDebugPins()
+{
   //
   // Enable DEBUG GPIOS
   //
@@ -71,14 +74,18 @@ void initDebugPins() {
   LL_EXTI_Init(&EXTI_InitStruct);
 }
 
-void EXTI0_IRQHandler() {
-  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_0)) {
+void EXTI0_IRQHandler()
+{
+  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_0))
+  {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_0);
     encoder_on_edge_a();
   }
 }
-void EXTI15_10_IRQHandler() {
-  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_13)) {
+void EXTI15_10_IRQHandler()
+{
+  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_13))
+  {
     LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_13);
     USERLED_PORT->ODR ^= USERLED_PIN;
     Step(-100);
@@ -87,7 +94,8 @@ void EXTI15_10_IRQHandler() {
     LL_USART_TransmitData8(USART2, 'A');
   }
 }
-void initUART() {
+void initUART()
+{
   LL_USART_InitTypeDef USARTInitStruct = {0};
   LL_GPIO_InitTypeDef GPIOInitStruct = {0};
   LL_USART_StructInit(&USARTInitStruct);
@@ -129,16 +137,20 @@ void initUART() {
   LL_USART_Enable(USART2);
 }
 
-void USARTSendBusyWaiting(char *msg, int len) {
-  for (int i = 0; i < len; i++) {
+void USARTSendBusyWaiting(char *msg, int len)
+{
+  for (int i = 0; i < len; i++)
+  {
     while (!LL_USART_IsActiveFlag_TXE(USART2))
       ;
     LL_USART_TransmitData8(USART2, msg[i]);
   }
 }
 // hopefully makes USART work with printf
-int _write(int file, char *ptr, int len) {
-  for (int i = 0; i < len; i++) {
+int _write(int file, char *ptr, int len)
+{
+  for (int i = 0; i < len; i++)
+  {
     while (!LL_USART_IsActiveFlag_TXE(USART2))
       ;
     LL_USART_TransmitData8(USART2, ptr[i]);
@@ -146,10 +158,12 @@ int _write(int file, char *ptr, int len) {
   return len;
 }
 // hopefully makes USART work with scanf
-int _read(int file, char *ptr, int len) {
+int _read(int file, char *ptr, int len)
+{
   int i = 0;
 
-  while (i < len) {
+  while (i < len)
+  {
     while (!(USART2->SR & USART_SR_RXNE))
       ;
 
