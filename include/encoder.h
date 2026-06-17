@@ -10,8 +10,8 @@
  * unverändert bleiben kann.
  */
 
-#define ENCODER_SLOTS_PER_REVOLUTION      963u
-#define ENCODER_SLOTS_PER_REVOLUTION_F    963.0f
+#define ENCODER_SLOTS_PER_REVOLUTION 963u
+#define ENCODER_SLOTS_PER_REVOLUTION_F 963.0f
 
 void encoder_init(void);
 void encoder_on_edge_a(void);
@@ -29,5 +29,6 @@ float encoder_get_omega_rad_s(void);
 float encoder_get_rps_avg(void);
 float encoder_get_rpm_avg(void);
 float encoder_get_omega_rad_s_avg(void);
+void encoderWhile();
 
 #endif /* ENCODER_H */

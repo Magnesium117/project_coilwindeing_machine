@@ -18,4 +18,5 @@ extern volatile uint8_t data_ready2;
 // 2. Declare function prototypes
 void hx711_init(void);
 void hx711_zero(void);
+void hx711While();
 #endif /* HX711_H */

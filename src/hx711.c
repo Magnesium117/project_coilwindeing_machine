@@ -2,6 +2,7 @@
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_tim.h"
+#include <stdio.h>
 
 #define HX711_DATA_PORT GPIOC
 #define HX711_DATA1_PIN LL_GPIO_PIN_11
@@ -28,17 +29,16 @@ static volatile uint8_t hx_clock_cycles = 0;
 static volatile uint32_t hx_temp_data1 = 0;
 static volatile uint32_t hx_temp_data2 = 0;
 
-void hx711_zero(void)
-{
-int32_t o1=0,o2=0;
-for(int i= 0;i<10;i++)
-{
-while(data_ready1==0 || data_ready2==0);
-o1+=load1/10;
-o2+=load2/10;
-}
-offset1=o1;
-offset2=o2;
+void hx711_zero(void) {
+  int32_t o1 = 0, o2 = 0;
+  for (int i = 0; i < 10; i++) {
+    while (data_ready1 == 0 || data_ready2 == 0)
+      ;
+    o1 += load1 / 10;
+    o2 += load2 / 10;
+  }
+  offset1 = o1;
+  offset2 = o2;
 }
 
 void hx711_init(void) {
@@ -202,8 +202,8 @@ void TIM8_CC_IRQHandler(void) {
         hx_temp_data2 |= 0xFF000000UL;
       }
 
-      load1 = (int32_t)hx_temp_data1-offset1;
-      load2 = (int32_t)hx_temp_data2-offset2;
+      load1 = (int32_t)hx_temp_data1 - offset1;
+      load2 = (int32_t)hx_temp_data2 - offset2;
 
       data_ready1 = 1;
       data_ready2 = 1;
@@ -216,5 +216,12 @@ void TIM8_CC_IRQHandler(void) {
     hx_clock_cycles++;
   } else {
     return;
+  }
+}
+void hx711While() {
+  /* Keep the original load-cell output intact. */
+  if (data_ready1) {
+    data_ready1 = 0;
+    printf("%ld,%ld\r\n", load1, load2);
   }
 }

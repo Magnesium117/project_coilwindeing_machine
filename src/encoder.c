@@ -1,27 +1,52 @@
 #include "encoder.h"
 
 #include "globals.h"
+#include "stepper_driver.h"
 #include "stm32f446xx.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_exti.h"
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_system.h"
 #include "stm32f4xx_ll_tim.h"
+#include <stdio.h>
 
-#define ENCODER_PORT                      GPIOA
-#define ENCODER_PIN_A                     LL_GPIO_PIN_0
+#define ENCODER_PORT GPIOA
+#define ENCODER_PIN_A LL_GPIO_PIN_0
 
 /*
  * Mindestabstand zwischen zwei gültigen Flanken.
  * Bei 250 rpm und 963 Schlitzen ist die Periodendauer ungefähr 249 us.
  * 20 us filtert Störimpulse, ohne echte Pulse zu verwerfen.
  */
-#define MIN_EDGE_DISTANCE_US              20u
+#define MIN_EDGE_DISTANCE_US 50u
 
 /* Nach dieser Zeit ohne Puls wird Drehzahl = 0 angenommen. */
-#define SPEED_TIMEOUT_US                  500000u
+#define SPEED_TIMEOUT_US 500000u
 
-#define TWO_PI                            6.28318530718f
+#define TWO_PI 6.28318530718f
+/*
+ * Winding/Gantry configuration
+ *
+ * GANTRY_STEPS_PER_REVOLUTION:
+ *   Relative gantry motion commanded after each spindle revolution.
+ *
+ * GANTRY_TRAVEL_STEPS:
+ *   Absolute commanded travel before the gantry direction is reversed.
+ *
+ * WINDING_TARGET_REVOLUTIONS:
+ *   0 = endless winding. Otherwise stop commanding new gantry steps after this
+ *   many spindle revolutions.
+ */
+#define GANTRY_STEPS_PER_REVOLUTION 3
+#define GANTRY_TRAVEL_STEPS 30
+#define WINDING_TARGET_REVOLUTIONS 0u
+#define WINDING_LOG_EACH_REVOLUTION 1
+
+static int32_t gantry_position_steps = 0;
+static int8_t gantry_direction = 1;
+static uint8_t winding_active = 1;
+
+static void winding_on_revolution(void);
 
 static volatile uint32_t edge_count = 0;
 static volatile uint32_t revolution_count = 0;
@@ -38,13 +63,10 @@ static volatile uint32_t period_sum_us = 0;
 static volatile uint16_t period_index = 0;
 static volatile uint16_t period_count = 0;
 
-static uint32_t get_time_us(void)
-{
-  return LL_TIM_GetCounter(TIM5);
-}
+static uint32_t get_time_us(void) { return LL_TIM_GetCounter(TIM5); }
+static uint32_t last_rev_print = 0;
 
-static void period_average_add(uint32_t dt_us)
-{
+static void period_average_add(uint32_t dt_us) {
   if (period_count >= ENCODER_SLOTS_PER_REVOLUTION) {
     period_sum_us -= period_buffer[period_index];
   } else {
@@ -60,8 +82,7 @@ static void period_average_add(uint32_t dt_us)
   }
 }
 
-static void encoder_gpio_exti_init(void)
-{
+static void encoder_gpio_exti_init(void) {
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
   LL_AHB1_GRP1_EnableClock(LL_AHB1_GRP1_PERIPH_GPIOA);
 
@@ -90,13 +111,12 @@ static void encoder_gpio_exti_init(void)
   NVIC_EnableIRQ(EXTI0_IRQn);
 }
 
-static void encoder_timebase_init(void)
-{
+static void encoder_timebase_init(void) {
   LL_APB1_GRP1_EnableClock(LL_APB1_GRP1_PERIPH_TIM5);
 
   LL_TIM_InitTypeDef tim;
   LL_TIM_StructInit(&tim);
-  tim.Prescaler = (SYSCLK / 1000000u) - 1u;  /* 84 MHz -> 1 MHz */
+  tim.Prescaler = (SYSCLK / 1000000u) - 1u; /* 84 MHz -> 1 MHz */
   tim.Autoreload = 0xFFFFFFFFu;
   tim.CounterMode = LL_TIM_COUNTERMODE_UP;
   tim.ClockDivision = LL_TIM_CLOCKDIVISION_DIV1;
@@ -106,8 +126,7 @@ static void encoder_timebase_init(void)
   LL_TIM_EnableCounter(TIM5);
 }
 
-void encoder_init(void)
-{
+void encoder_init(void) {
   edge_count = 0;
   revolution_count = 0;
   revolution_event = 0;
@@ -131,8 +150,7 @@ void encoder_init(void)
  * Wird ausschließlich aus EXTI0_IRQHandler() aufgerufen.
  * Absichtlich kurz halten: keine UART-Ausgabe, kein printf, keine langen Loops.
  */
-void encoder_on_edge_a(void)
-{
+void encoder_on_edge_a(void) {
   uint32_t now = get_time_us();
 
   if (last_edge_time_us != 0) {
@@ -159,18 +177,11 @@ void encoder_on_edge_a(void)
   }
 }
 
-uint32_t encoder_get_edge_count(void)
-{
-  return edge_count;
-}
+uint32_t encoder_get_edge_count(void) { return edge_count; }
 
-uint32_t encoder_get_revolution_count(void)
-{
-  return revolution_count;
-}
+uint32_t encoder_get_revolution_count(void) { return revolution_count; }
 
-uint8_t encoder_take_revolution_event(void)
-{
+uint8_t encoder_take_revolution_event(void) {
   if (revolution_event) {
     revolution_event = 0u;
     return 1u;
@@ -178,13 +189,9 @@ uint8_t encoder_take_revolution_event(void)
   return 0u;
 }
 
-uint32_t encoder_get_last_period_us(void)
-{
-  return last_period_us;
-}
+uint32_t encoder_get_last_period_us(void) { return last_period_us; }
 
-float encoder_get_rps(void)
-{
+float encoder_get_rps(void) {
   uint32_t now = get_time_us();
 
   if (last_edge_time_us == 0u) {
@@ -198,18 +205,11 @@ float encoder_get_rps(void)
   return rps;
 }
 
-float encoder_get_rpm(void)
-{
-  return encoder_get_rps() * 60.0f;
-}
+float encoder_get_rpm(void) { return encoder_get_rps() * 60.0f; }
 
-float encoder_get_omega_rad_s(void)
-{
-  return TWO_PI * encoder_get_rps();
-}
+float encoder_get_omega_rad_s(void) { return TWO_PI * encoder_get_rps(); }
 
-float encoder_get_rps_avg(void)
-{
+float encoder_get_rps_avg(void) {
   uint32_t now = get_time_us();
 
   if (last_edge_time_us == 0u) {
@@ -229,12 +229,59 @@ float encoder_get_rps_avg(void)
   return avg_pulse_frequency_hz / ENCODER_SLOTS_PER_REVOLUTION_F;
 }
 
-float encoder_get_rpm_avg(void)
-{
-  return encoder_get_rps_avg() * 60.0f;
-}
+float encoder_get_rpm_avg(void) { return encoder_get_rps_avg() * 60.0f; }
 
-float encoder_get_omega_rad_s_avg(void)
-{
+float encoder_get_omega_rad_s_avg(void) {
   return TWO_PI * encoder_get_rps_avg();
+}
+void encoderWhile() {
+  uint32_t rev = encoder_get_edge_count() / ENCODER_SLOTS_PER_REVOLUTION;
+
+  if (rev != last_rev_print) {
+    last_rev_print = rev;
+
+    printf("rev=%lu edges=%lu\r\n", (unsigned long)rev,
+           (unsigned long)encoder_get_edge_count());
+  }
+
+  /* One event is generated by encoder.c after every full spindle revolution. */
+  if (encoder_take_revolution_event()) {
+    winding_on_revolution();
+  }
+}
+static void winding_on_revolution(void) {
+  if (!winding_active) {
+    return;
+  }
+
+  uint32_t rev = encoder_get_revolution_count();
+
+  if ((WINDING_TARGET_REVOLUTIONS != 0u) &&
+      (rev > WINDING_TARGET_REVOLUTIONS)) {
+    winding_active = 0u;
+    return;
+  }
+
+  int32_t step_command = gantry_direction * GANTRY_STEPS_PER_REVOLUTION;
+  int32_t next_position = gantry_position_steps + step_command;
+
+  if (next_position >= GANTRY_TRAVEL_STEPS) {
+    gantry_direction = -1;
+    step_command = -GANTRY_STEPS_PER_REVOLUTION;
+    next_position = gantry_position_steps + step_command;
+  } else if (next_position <= 0) {
+    gantry_direction = 1;
+    step_command = GANTRY_STEPS_PER_REVOLUTION;
+    next_position = gantry_position_steps + step_command;
+  }
+
+  Step(step_command);
+  gantry_position_steps = next_position;
+
+#if WINDING_LOG_EACH_REVOLUTION
+  uint32_t rpm10 = (uint32_t)(encoder_get_rpm_avg() * 10.0f);
+  printf("REV,%lu,EDGES,%lu,GANTRY,%ld,RPM,%lu.%01lu\r\n", (unsigned long)rev,
+         (unsigned long)encoder_get_edge_count(), (long)gantry_position_steps,
+         (unsigned long)(rpm10 / 10u), (unsigned long)(rpm10 % 10u));
+#endif
 }
