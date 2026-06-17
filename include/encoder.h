@@ -10,8 +10,8 @@
  * unverändert bleiben kann.
  */
 
-#define ENCODER_SLOTS_PER_REVOLUTION 963u
-#define ENCODER_SLOTS_PER_REVOLUTION_F 963.0f
+#define ENCODER_SLOTS_PER_REVOLUTION 900u
+#define ENCODER_SLOTS_PER_REVOLUTION_F 900.0f
 
 void encoder_init(void);
 void encoder_on_edge_a(void);

@@ -1,4 +1,5 @@
 #include "speed_control.h"
+#include "encoder.h"
 #include "globals.h"
 #include "motor_pwm.h"
 #include "stm32f446xx.h"
@@ -50,31 +51,33 @@ void initSpeedControl() {
   TIM_InitStruct.RepetitionCounter = 0;
   LL_TIM_Init(TIM9, &TIM_InitStruct);
   LL_TIM_EnableARRPreload(TIM9);
-  LL_TIM_EnableIT_UPDATE(TIM9);
   LL_TIM_EnableCounter(TIM9);
-  LL_TIM_OC_SetCompareCH1(TIM9, 10);
-  LL_TIM_EnableIT_CC1(TIM9);
+  // LL_TIM_OC_SetCompareCH1(TIM9, 10);
+  // LL_TIM_EnableIT_CC1(TIM9);
   uint32_t encoded_priority = NVIC_EncodePriority(priority_grouping, 0, 0);
   NVIC_SetPriority(TIM1_BRK_TIM9_IRQn, encoded_priority);
+  NVIC_EnableIRQ(TIM1_BRK_TIM9_IRQn);
   motorState_t mState;
   mState.L1 = STATE_HIGH;
   mState.L2 = STATE_LOW;
-  setPWMvalue(0);
+  setPWMvalue(1);
   SetPinsFromState(&mState);
+  LL_TIM_EnableIT_UPDATE(TIM9);
 }
 void TIM1_BRK_TIM9_IRQHandler(void) {
-  if (LL_TIM_IsActiveFlag_CC1(TIM9)) {
-    LL_TIM_ClearFlag_CC1(TIM9);
+  if (LL_TIM_IsActiveFlag_UPDATE(TIM9)) {
+    LL_TIM_ClearFlag_UPDATE(TIM9);
     controlSpeed();
   }
 }
 void SpeedControlWhile() {
   if (prev_N != N) {
-    printf("%d", (int)N);
+    // printf("    \r\n");
+    printf("%d\r\n", (int)N);
     prev_N = N;
   }
 }
-static void controlSpeed() {}
+static void controlSpeed() { N = encoder_get_rpm(); }
 static void SetPinsFromState(motorState_t *motorState) {
   // writePin(EN_PORT, L1_EN_PIN, motorState->L1 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH2, motorState->L1 & 0b01);
