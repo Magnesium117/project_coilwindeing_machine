@@ -18,7 +18,7 @@
  * Bei 250 rpm und 963 Schlitzen ist die Periodendauer ungefähr 249 us.
  * 20 us filtert Störimpulse, ohne echte Pulse zu verwerfen.
  */
-#define MIN_EDGE_DISTANCE_US 50u
+#define MIN_EDGE_DISTANCE_US 1u
 
 /* Nach dieser Zeit ohne Puls wird Drehzahl = 0 angenommen. */
 #define SPEED_TIMEOUT_US 500000u
