@@ -37,10 +37,13 @@
  *   0 = endless winding. Otherwise stop commanding new gantry steps after this
  *   many spindle revolutions.
  */
+
+// 1 Step = 0,6mm
 #define GANTRY_STEPS_PER_REVOLUTION 3
 #define GANTRY_TRAVEL_STEPS 30
 #define WINDING_TARGET_REVOLUTIONS 0u
 #define WINDING_LOG_EACH_REVOLUTION 1
+#define GANTRY_REVOLUTIONS_TO_STEP 1
 
 static int32_t gantry_position_steps = 0;
 static int8_t gantry_direction = 1;
@@ -274,40 +277,44 @@ static void winding_on_revolution(void)
 
   uint32_t rev = encoder_get_revolution_count();
 
-  if ((WINDING_TARGET_REVOLUTIONS != 0u) &&
-      (rev >= WINDING_TARGET_REVOLUTIONS))
+  if (!(rev % GANTRY_REVOLUTIONS_TO_STEP))
   {
-    winding_active = 0u;
-    return;
-  }
 
-  int32_t step_command = gantry_direction * GANTRY_STEPS_PER_REVOLUTION;
+    if ((WINDING_TARGET_REVOLUTIONS != 0u) &&
+        (rev >= WINDING_TARGET_REVOLUTIONS))
+    {
+      winding_active = 0u;
+      return;
+    }
 
-  /*
-   * Erst den Schritt ausführen.
-   * Danach die interne Position aktualisieren.
-   */
-  Step(step_command);
-  gantry_position_steps += step_command;
+    int32_t step_command = gantry_direction * GANTRY_STEPS_PER_REVOLUTION;
 
-  /*
-   * Erst NACH dem Schritt prüfen, ob die Grenze erreicht wurde.
-   */
-  if (gantry_position_steps >= GANTRY_TRAVEL_STEPS)
-  {
-    gantry_position_steps = GANTRY_TRAVEL_STEPS;
-    gantry_direction = -1;
-  }
-  else if (gantry_position_steps <= 0)
-  {
-    gantry_position_steps = 0;
-    gantry_direction = 1;
-  }
+    /*
+     * Erst den Schritt ausführen.
+     * Danach die interne Position aktualisieren.
+     */
+    Step(step_command);
+    gantry_position_steps += step_command;
+
+    /*
+     * Erst NACH dem Schritt prüfen, ob die Grenze erreicht wurde.
+     */
+    if (gantry_position_steps >= GANTRY_TRAVEL_STEPS)
+    {
+      gantry_position_steps = GANTRY_TRAVEL_STEPS;
+      gantry_direction = -1;
+    }
+    else if (gantry_position_steps <= 0)
+    {
+      gantry_position_steps = 0;
+      gantry_direction = 1;
+    }
 
 #if WINDING_LOG_EACH_REVOLUTION
-  printf("REV=%lu GANTRY=%ld DIR=%d\r\n",
-         (unsigned long)rev,
-         (long)gantry_position_steps,
-         (int)gantry_direction);
+    printf("REV=%lu GANTRY=%ld DIR=%d\r\n",
+           (unsigned long)rev,
+           (long)gantry_position_steps,
+           (int)gantry_direction);
 #endif
+  }
 }
