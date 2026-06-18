@@ -60,9 +60,10 @@ void initSpeedControl() {
   motorState_t mState;
   mState.L1 = STATE_HIGH;
   mState.L2 = STATE_LOW;
-  setPWMvalue(1);
+  setPWMvalue(0);
   SetPinsFromState(&mState);
   LL_TIM_EnableIT_UPDATE(TIM9);
+  setPWMvalue(1);
 }
 void TIM1_BRK_TIM9_IRQHandler(void) {
   if (LL_TIM_IsActiveFlag_UPDATE(TIM9)) {

@@ -3,6 +3,7 @@
 #include "encoder.h"
 #include "globals.h"
 #include "hx711.h"
+#include "motor_pwm.h"
 #include "speed_control.h"
 #include "stepper_driver.h"
 #include "stm32f446xx.h"
@@ -34,6 +35,7 @@ int main() {
   hx711_zero();
   initUART();
   initDebugPins();
+  initPwm();
   initCurrentControl();
   initStepperDriver();
   encoder_init();
