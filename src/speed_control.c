@@ -14,11 +14,18 @@ struct motorState_s {
   phaseState_t L1;
   phaseState_t L2;
 };
+#define K_ANTI_WINDUP 1000
 typedef struct motorState_s motorState_t;
 static void controlSpeed();
+static volatile double prev_rpm = 0;
+// Controller vars
+static volatile double setRpm = 0;
+static volatile double state[1] = {0};
 static volatile double voltage = 0;
-static volatile double N = 0;
-static volatile double prev_N = 0;
+static volatile double voltage_sat = 0;
+static volatile double voltage_sat_diff = 0;
+static volatile double rpm = 0;
+
 static void setPWMvalue(float pwm);
 // static void writePin(GPIO_TypeDef *port, uint32_t pin, int value);
 static void setPWMstate(uint32_t channel, int state);
@@ -72,13 +79,29 @@ void TIM1_BRK_TIM9_IRQHandler(void) {
   }
 }
 void SpeedControlWhile() {
-  if (prev_N != N) {
+  if (prev_rpm != rpm) {
     // printf("    \r\n");
-    printf("%d\r\n", (int)N);
-    prev_N = N;
+    printf("%d\r\n", (int)rpm);
+    prev_rpm = rpm;
   }
 }
-static void controlSpeed() { N = encoder_get_rpm(); }
+void SetRPM(float setpoint_rpm) { setRpm = setpoint_rpm; }
+float GetPRM() { return rpm; }
+static void controlSpeed() {
+  rpm = encoder_get_rpm();
+  voltage = 1.0491910432230966e-05 * state[0] +
+            5.245955216115483e-06 * (setRpm - rpm);
+  voltage_sat = voltage;
+  if (voltage < 0) {
+    voltage_sat = 0;
+  } else if (voltage > 1) {
+    voltage_sat = 1;
+  }
+  state[0] = 1.0 * state[0] + 1.0 * (setRpm - rpm) +
+             K_ANTI_WINDUP * (voltage_sat_diff);
+  voltage_sat_diff = voltage_sat - voltage;
+  setPWMvalue(voltage);
+}
 static void SetPinsFromState(motorState_t *motorState) {
   // writePin(EN_PORT, L1_EN_PIN, motorState->L1 & 0b10);
   setPWMstate(LL_TIM_CHANNEL_CH2, motorState->L1 & 0b01);
