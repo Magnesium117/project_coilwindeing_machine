@@ -3,11 +3,12 @@
 #include "main.h"
 #include "motor_pwm.h"
 #define LOWPASS_ORDER 10
-#define SET_CURRENT 150 // mA
 #define K_ANTI_WINDUP 1000
 static volatile double state[2] = {0};
 static volatile double prev_state[1] = {0};
 static volatile double voltage_sat_diff = 0;
+static volatile double setpointCurrent = 150; // mA
+static volatile double current = 0;           // mA
 static void setPWMvalue(float pwm);
 // static void writePin(GPIO_TypeDef *port, uint32_t pin, int value);
 static void setPWMstate(uint32_t channel, int state);
@@ -92,6 +93,8 @@ void initCurrentControl() {
   SetPinsFromState(&mState);
 }
 // void current_control_while() {}
+void SetCurrent(double current_mA) { setpointCurrent = current_mA; }
+double GetCurrent() { return current; }
 static void initADC() {
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_ADC1);
   LL_ADC_CommonInitTypeDef ADCCommomInitStruct;
@@ -139,7 +142,7 @@ void ADC_IRQHandler() {
   if (LL_ADC_IsActiveFlag_EOCS(ADC1)) {
     LL_ADC_ClearFlag_EOCS(ADC1);
     uint16_t adc_value = LL_ADC_REG_ReadConversionData12(ADC1);
-    double current = decodeCurrent(adc_value);
+    current = decodeCurrent(adc_value);
     controlCurrent(current);
   }
 }
@@ -155,7 +158,7 @@ static void controlCurrent(double current) {
   current = current * 1e3; // current in mA
   voltage = 0.00021201626441857968 * state[0] +
             -0.00020280817475870627 * state[1] +
-            0.00010370610979448802 * (SET_CURRENT - current);
+            0.00010370610979448802 * (setpointCurrent - current);
   voltage_sat = voltage;
   if (voltage < 0) {
     voltage_sat = 0;
@@ -163,7 +166,8 @@ static void controlCurrent(double current) {
     voltage_sat = 1;
   }
   prev_state[0] = state[0];
-  state[0] = 2.0 * state[0] + -1.0 * state[1] + 1.0 * (SET_CURRENT - current) +
+  state[0] = 2.0 * state[0] + -1.0 * state[1] +
+             1.0 * (setpointCurrent - current) +
              K_ANTI_WINDUP * (voltage_sat_diff);
   voltage_sat_diff = voltage_sat - voltage;
   state[1] = 1.0 * prev_state[0];

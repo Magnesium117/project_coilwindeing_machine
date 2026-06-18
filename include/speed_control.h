@@ -11,7 +11,7 @@
 
 void initSpeedControl();
 void SpeedControlWhile();
-void SetRPM(float setpoint_rpm);
-float GetPRM();
+void SetRPM(double setpoint_rpm);
+double GetPRM();
 #endif //! SPEED_CONTROL_H
 #define SPEED_CONTROL_H

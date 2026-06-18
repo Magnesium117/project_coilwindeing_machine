@@ -1,4 +1,5 @@
 #include "hx711.h"
+#include "current_control.h"
 #include "stm32f4xx_ll_bus.h"
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_tim.h"
@@ -10,6 +11,14 @@
 
 #define HX711_SCK_PORT GPIOC
 #define HX711_SCK_PIN LL_GPIO_PIN_12
+
+// #define LOGGING_HX711
+// Controller Params
+#define KPHI 0.05775705436881926
+#define FRICTION_I 0                       // mA
+#define D_DMS_WELLE 10                     // mm
+#define LOADCELL_SENSITIVITY 10            // Nm
+static volatile double setpoint_Force = 0; // N
 
 volatile int32_t load1 = 0;
 volatile int32_t load2 = 0;
@@ -28,6 +37,8 @@ static volatile uint8_t hx_clock_cycles = 0;
 
 static volatile uint32_t hx_temp_data1 = 0;
 static volatile uint32_t hx_temp_data2 = 0;
+
+static void set_optimal_current(double load_tourque);
 
 void hx711_zero(void) {
   int32_t o1 = 0, o2 = 0;
@@ -220,8 +231,19 @@ void TIM8_CC_IRQHandler(void) {
 }
 void hx711While() {
   /* Keep the original load-cell output intact. */
-  if (data_ready1) {
+  if (data_ready1 && data_ready2) {
     data_ready1 = 0;
+    data_ready2 = 0;
+    double load1_tourque = load1 * LOADCELL_SENSITIVITY;
+    double load2_tourque = load2 * LOADCELL_SENSITIVITY;
+    set_optimal_current(load1_tourque + load2_tourque);
+
+#ifdef LOGGING_HX711
     printf("%ld,%ld\r\n", load1, load2);
+#endif
   }
+}
+static void set_optimal_current(double load_tourque) {
+  double i_set = (D_DMS_WELLE * GetCurrent() * 1e-3) /
+                 (KPHI * GetCurrent() * 1e-3 + load_tourque) * setpoint_Force;
 }

@@ -85,8 +85,8 @@ void SpeedControlWhile() {
     prev_rpm = rpm;
   }
 }
-void SetRPM(float setpoint_rpm) { setRpm = setpoint_rpm; }
-float GetPRM() { return rpm; }
+void SetRPM(double setpoint_rpm) { setRpm = setpoint_rpm; }
+double GetPRM() { return rpm; }
 static void controlSpeed() {
   rpm = encoder_get_rpm();
   voltage = 1.0491910432230966e-05 * state[0] +
