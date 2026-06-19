@@ -16,6 +16,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 static void getParams();
 int main() {
   //
@@ -135,12 +136,17 @@ void initUART() {
   LL_USART_Enable(USART2);
 }
 static void getParams() {
-  float wirediam = 0;
-  float wireforce = 0;
-  float coillength = 0;
-  float coilstart = 0;
+  float val;
+  char commands[6][32] = {"wirediam",  "wireforce", "coillength",
+                          "coilstart", "nwind",     "start"};
+  char cmd[128];
+  uint32_t wirediam = 0;
+  double wireforce = 0;
+  uint32_t coillength = 0;
+  uint32_t coilstart = 0;
   uint32_t nwind = 0;
   int config_finished = 0;
+  int valid_cmd = 0;
   printf("Configuration interface for the Coilwinding Machine. \r\n"
          "Parameters:\r\n"
          "wirediam -> Drahtdurchmesser[mm]\r\n"
@@ -152,8 +158,54 @@ static void getParams() {
          "nwind -> Anzahl der Wicklungen\r\n"
          "start -> Wicklung beginnen\r\n");
   while (!config_finished) {
-    printf("Comfig: ");
+    printf("Config: ");
+    scanf("\n %127s", cmd);
+    // if (!strcmp(cmd, commands[5])) {
+    // break;
+    // }
+    valid_cmd = 0;
+    for (int i = 0; i < 6; i++) {
+      if (!strcmp(cmd, commands[i])) {
+        valid_cmd = 1;
+        switch (i) {
+        case 0:
+          scanf(" %f", &val);
+          wirediam = (uint32_t)(val * 1e3);
+          break;
+        case 1:
+          scanf(" %f", &val);
+          wireforce = (double)val;
+          break;
+        case 2:
+          scanf(" %f", &val);
+          coillength = (uint32_t)(val * 1e3);
+          break;
+        case 3:
+          scanf(" %f", &val);
+          coilstart = (uint32_t)(val * 1e3);
+          break;
+        case 4:
+          scanf(" %f", &val);
+          nwind = (int)val;
+          break;
+        case 5:
+          config_finished = 1;
+        }
+      }
+    }
+    if (!valid_cmd) {
+      printf("Command %s is not valid.\r\n", cmd);
+    }
   }
+  printf("Winding starting.\r\n"
+         "Configuration:\r\n"
+         "Wire Diameter:      %f mm\r\n"
+         "Wire Force:         %f N\r\n"
+         "Coil Length:        %f mm\r\n"
+         "Coil Start:         %f mm\r\n"
+         "Number of Windings: %d",
+         (float)wirediam / 1e3, wireforce, (float)coillength / 1e3,
+         (float)coilstart / 1e3, nwind);
 }
 
 void USARTSendBusyWaiting(char *msg, int len) {
