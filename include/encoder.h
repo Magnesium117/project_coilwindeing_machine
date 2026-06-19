@@ -30,6 +30,7 @@ float encoder_get_rps_avg(void);
 float encoder_get_rpm_avg(void);
 float encoder_get_omega_rad_s_avg(void);
 void encoderWhile();
-void encoder_set_coil_length_us(uint32_t lenght);
+void encoder_set_coil_params(uint32_t wireDiameter_um, uint32_t length_um,
+                             uint32_t windings);
 
 #endif /* ENCODER_H */

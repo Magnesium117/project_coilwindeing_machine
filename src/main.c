@@ -34,12 +34,12 @@ int main() {
   NVIC_SetPriorityGrouping(priority_grouping);
   initUART();
   initDebugPins();
+  initStepperDriver();
   getParams();
   hx711_init();
   hx711_zero();
   initPwm();
   initCurrentControl();
-  initStepperDriver();
   encoder_init();
   initSpeedControl();
   while (1) {
@@ -206,6 +206,9 @@ static void getParams() {
          "Number of Windings: %d",
          (float)wirediam / 1e3, wireforce, (float)coillength / 1e3,
          (float)coilstart / 1e3, nwind);
+  encoder_set_coil_params(wirediam, coillength, nwind);
+  hx711_set_force(wireforce);
+  Step(coilstart / GANTRY_UM_PER_STEP);
 }
 
 void USARTSendBusyWaiting(char *msg, int len) {

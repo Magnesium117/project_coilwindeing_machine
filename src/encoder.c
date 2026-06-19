@@ -30,7 +30,7 @@
  * GANTRY_STEPS_PER_REVOLUTION:
  *   Relative gantry motion commanded after each spindle revolution.
  *
- * GANTRY_TRAVEL_STEPS:
+ * gantry_travel_steps:
  *   Absolute commanded travel before the gantry direction is reversed.
  *
  * WINDING_TARGET_REVOLUTIONS:
@@ -38,15 +38,13 @@
  *   many spindle revolutions.
  */
 
-// 1 Step = 0,06mm
-#define WIRE_DIAMETER_UM 200u
-#define COIL_LENGTH_UM 40000u
-#define TARGET_WINDINGS 500u
-#define GANTRY_UM_PER_STEP 60u
+static volatile uint32_t wire_diameter_um = 200u;
+// static volatile uint32_t coil_length_um = 40000u;
+static volatile uint32_t target_windings = 500u;
 
 #define CEIL_DIV_U32(a, b) (((a) + (b) - 1u) / (b))
 
-#define GANTRY_TRAVEL_STEPS CEIL_DIV_U32(COIL_LENGTH_UM, GANTRY_UM_PER_STEP)
+static volatile uint32_t gantry_travel_steps = 0;
 
 #define WINDING_LOG_EACH_REVOLUTION 1
 
@@ -71,6 +69,13 @@ static volatile uint32_t period_buffer[ENCODER_SLOTS_PER_REVOLUTION];
 static volatile uint32_t period_sum_us = 0;
 static volatile uint16_t period_index = 0;
 static volatile uint16_t period_count = 0;
+
+void encoder_set_coil_params(uint32_t wireDiameter_um, uint32_t length_um,
+                             uint32_t windings) {
+  gantry_travel_steps = CEIL_DIV_U32(length_um, GANTRY_UM_PER_STEP);
+  target_windings = windings;
+  wire_diameter_um = wireDiameter_um;
+}
 
 static uint32_t get_time_us(void) { return LL_TIM_GetCounter(TIM5); }
 
@@ -255,7 +260,7 @@ static void winding_on_revolution(void) {
 
   uint32_t rev = encoder_get_revolution_count();
 
-  if ((TARGET_WINDINGS != 0u) && (rev >= TARGET_WINDINGS)) {
+  if ((target_windings != 0u) && (rev >= target_windings)) {
     winding_active = 0u;
     return;
   }
@@ -265,7 +270,7 @@ static void winding_on_revolution(void) {
    * Da Step() nur ganze Steps kann, sammeln wir die gewünschte Bewegung
    * in µm im Akkumulator.
    */
-  gantry_um_accumulator += WIRE_DIAMETER_UM;
+  gantry_um_accumulator += wire_diameter_um;
 
   int32_t steps_to_move = (int32_t)(gantry_um_accumulator / GANTRY_UM_PER_STEP);
 
@@ -282,8 +287,8 @@ static void winding_on_revolution(void) {
   /*
    * Richtungswechsel nach Erreichen der Wickelbreite.
    */
-  if (gantry_position_steps >= (int32_t)GANTRY_TRAVEL_STEPS) {
-    gantry_position_steps = (int32_t)GANTRY_TRAVEL_STEPS;
+  if (gantry_position_steps >= (int32_t)gantry_travel_steps) {
+    gantry_position_steps = (int32_t)gantry_travel_steps;
     gantry_direction = -1;
   } else if (gantry_position_steps <= 0) {
     gantry_position_steps = 0;

@@ -19,4 +19,5 @@ extern volatile uint8_t data_ready2;
 void hx711_init(void);
 void hx711_zero(void);
 void hx711While();
+void hx711_set_force(double force_N);
 #endif /* HX711_H */

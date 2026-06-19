@@ -39,6 +39,7 @@ static volatile uint32_t hx_temp_data1 = 0;
 static volatile uint32_t hx_temp_data2 = 0;
 
 static void set_optimal_current(double load_tourque);
+void hx711_set_force(double force_N) { setpoint_Force = force_N; }
 
 void hx711_zero(void) {
   int32_t o1 = 0, o2 = 0;
