@@ -15,9 +15,9 @@
 // #define LOGGING_HX711
 // Controller Params
 #define KPHI 0.05775705436881926
-#define FRICTION_I 0                       // mA
-#define D_DMS_WELLE 10                     // mm
-#define LOADCELL_SENSITIVITY 10            // Nm
+#define FRICTION_I 0                       // mA // #TODO measure
+#define D_DMS_WELLE 10                     // mm // #TODO measure
+#define LOADCELL_SENSITIVITY 10            // Nm // #TODO measure
 static volatile double setpoint_Force = 0; // N
 
 volatile int32_t load1 = 0;
