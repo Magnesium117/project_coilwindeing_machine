@@ -16,7 +16,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
-
+static void getParams();
 int main() {
   //
   // Configure Clock
@@ -31,10 +31,11 @@ int main() {
   // Set NVIC Priority Grouping
   //
   NVIC_SetPriorityGrouping(priority_grouping);
-  hx711_init();
-  hx711_zero();
   initUART();
   initDebugPins();
+  getParams();
+  hx711_init();
+  hx711_zero();
   initPwm();
   initCurrentControl();
   initStepperDriver();
@@ -132,6 +133,27 @@ void initUART() {
   LL_USART_Init(USART2, &USARTInitStruct);
 
   LL_USART_Enable(USART2);
+}
+static void getParams() {
+  float wirediam = 0;
+  float wireforce = 0;
+  float coillength = 0;
+  float coilstart = 0;
+  uint32_t nwind = 0;
+  int config_finished = 0;
+  printf("Configuration interface for the Coilwinding Machine. \r\n"
+         "Parameters:\r\n"
+         "wirediam -> Drahtdurchmesser[mm]\r\n"
+         "wireforce -> Kraft auf den Draht[N]\r\n"
+         "coillength -> Länge des Spulenkörpers[mm]. Hier ist die Länge des zu "
+         "bewickelndem Teil gemeint.\r\n"
+         "coilstart -> Startpunkt der Spule[mm]. Angangspunkt der Spule "
+         "gemessen von der Position der Drahtführung.\r\n"
+         "nwind -> Anzahl der Wicklungen\r\n"
+         "start -> Wicklung beginnen\r\n");
+  while (!config_finished) {
+    printf("Comfig: ");
+  }
 }
 
 void USARTSendBusyWaiting(char *msg, int len) {
