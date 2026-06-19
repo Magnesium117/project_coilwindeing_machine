@@ -37,14 +37,23 @@
  *   0 = endless winding. Otherwise stop commanding new gantry steps after this
  *   many spindle revolutions.
  */
-#define GANTRY_STEPS_PER_REVOLUTION 3
-#define GANTRY_TRAVEL_STEPS 30
-#define WINDING_TARGET_REVOLUTIONS 0u
-#define WINDING_LOG_EACH_REVOLUTION 0
+
+// 1 Step = 0,06mm
+#define WIRE_DIAMETER_UM 200u
+#define COIL_LENGTH_UM 40000u
+#define TARGET_WINDINGS 500u
+#define GANTRY_UM_PER_STEP 60u
+
+#define CEIL_DIV_U32(a, b) (((a) + (b) - 1u) / (b))
+
+#define GANTRY_TRAVEL_STEPS CEIL_DIV_U32(COIL_LENGTH_UM, GANTRY_UM_PER_STEP)
+
+#define WINDING_LOG_EACH_REVOLUTION 1
 
 static int32_t gantry_position_steps = 0;
 static int8_t gantry_direction = 1;
 static uint8_t winding_active = 1;
+static uint32_t gantry_um_accumulator = 0;
 
 static void winding_on_revolution(void);
 
@@ -64,7 +73,6 @@ static volatile uint16_t period_index = 0;
 static volatile uint16_t period_count = 0;
 
 static uint32_t get_time_us(void) { return LL_TIM_GetCounter(TIM5); }
-static uint32_t last_rev_print = 0;
 
 static void period_average_add(uint32_t dt_us) {
   if (period_count >= ENCODER_SLOTS_PER_REVOLUTION) {
@@ -247,26 +255,35 @@ static void winding_on_revolution(void) {
 
   uint32_t rev = encoder_get_revolution_count();
 
-  if ((WINDING_TARGET_REVOLUTIONS != 0u) &&
-      (rev >= WINDING_TARGET_REVOLUTIONS)) {
+  if ((TARGET_WINDINGS != 0u) && (rev >= TARGET_WINDINGS)) {
     winding_active = 0u;
     return;
   }
 
-  int32_t step_command = gantry_direction * GANTRY_STEPS_PER_REVOLUTION;
+  /*
+   * Pro Spindelumdrehung soll die Gantry um eine Drahtdicke weiter.
+   * Da Step() nur ganze Steps kann, sammeln wir die gewünschte Bewegung
+   * in µm im Akkumulator.
+   */
+  gantry_um_accumulator += WIRE_DIAMETER_UM;
+
+  int32_t steps_to_move = (int32_t)(gantry_um_accumulator / GANTRY_UM_PER_STEP);
+
+  gantry_um_accumulator -= (uint32_t)steps_to_move * GANTRY_UM_PER_STEP;
+
+  if (steps_to_move > 0) {
+    int32_t step_command = gantry_direction * steps_to_move;
+
+    Step(step_command);
+
+    gantry_position_steps += step_command;
+  }
 
   /*
-   * Erst den Schritt ausführen.
-   * Danach die interne Position aktualisieren.
+   * Richtungswechsel nach Erreichen der Wickelbreite.
    */
-  Step(step_command);
-  gantry_position_steps += step_command;
-
-  /*
-   * Erst NACH dem Schritt prüfen, ob die Grenze erreicht wurde.
-   */
-  if (gantry_position_steps >= GANTRY_TRAVEL_STEPS) {
-    gantry_position_steps = GANTRY_TRAVEL_STEPS;
+  if (gantry_position_steps >= (int32_t)GANTRY_TRAVEL_STEPS) {
+    gantry_position_steps = (int32_t)GANTRY_TRAVEL_STEPS;
     gantry_direction = -1;
   } else if (gantry_position_steps <= 0) {
     gantry_position_steps = 0;
