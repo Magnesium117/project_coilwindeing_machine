@@ -6,6 +6,7 @@
 #include "stm32f4xx_ll_gpio.h"
 #include "stm32f4xx_ll_tim.h"
 #include "stm32f4xx_ll_utils.h"
+#include "used_stmlibs.h"
 #include <stdint.h>
 #define PWM_ARR 250
 #define PWM_FREQ 10000000 // #Hz //TIMER frequence of PWM
@@ -39,11 +40,14 @@ typedef struct {
 
 static volatile int nSteps = 0;
 static volatile int steps = 0;
+static volatile uint32_t position_um = 0;
 static motorState_t MotorStates[N_MOTOR_STATES];
 static volatile int state_counter = 0;
+static volatile int in_home_position = 0;
 
 static void initMotorStates();
 static void SetPinsFromState(motorState_t *motorState);
+static void initHomingExti();
 
 void initStepperDriver() {
   LL_APB2_GRP1_EnableClock(LL_APB2_GRP1_PERIPH_SYSCFG);
@@ -121,6 +125,31 @@ void initStepperDriver() {
   NVIC_SetPriority(TIM1_UP_TIM10_IRQn, encoded_priority);
   NVIC_EnableIRQ(TIM1_UP_TIM10_IRQn);
   SetPinsFromState(&MotorStates[state_counter]);
+  initHomingExti();
+}
+static void initHomingExti() {
+  LL_GPIO_InitTypeDef GPIO_Initstruct;
+  LL_GPIO_StructInit(&GPIO_Initstruct);
+  GPIO_Initstruct.OutputType = LL_GPIO_OUTPUT_PUSHPULL;
+  GPIO_Initstruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  GPIO_Initstruct.Pin = HOMING_PIN;
+  GPIO_Initstruct.Pull = LL_GPIO_PULL_UP;
+  GPIO_Initstruct.Mode = LL_GPIO_MODE_INPUT;
+  LL_GPIO_Init(HOMING_PORT, &GPIO_Initstruct);
+  //
+  // Configure Homing interrupt
+  //
+  LL_SYSCFG_SetEXTISource(LL_SYSCFG_EXTI_PORTB, LL_SYSCFG_EXTI_LINE7);
+  LL_EXTI_InitTypeDef EXTI_InitStruct;
+  EXTI_InitStruct.Line_0_31 = LL_EXTI_LINE_7;
+  EXTI_InitStruct.Mode = LL_EXTI_MODE_IT;
+  EXTI_InitStruct.Trigger = LL_EXTI_TRIGGER_FALLING;
+  EXTI_InitStruct.LineCommand = ENABLE;
+  LL_EXTI_Init(&EXTI_InitStruct);
+  LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_7);
+  uint32_t encoded_priority = NVIC_EncodePriority(priority_grouping, 0, 0);
+  NVIC_SetPriority(EXTI9_5_IRQn, encoded_priority);
+  NVIC_EnableIRQ(EXTI9_5_IRQn);
 }
 static void initMotorStates() {
   // Halfstepping
@@ -150,6 +179,13 @@ static void initMotorStates() {
   MotorStates[7].Coil2 = COIL_POSITIVE;
 }
 void Step(int N) { nSteps += N; }
+void EXTI9_5_IRQHandler() {
+  if (LL_EXTI_IsActiveFlag_0_31(LL_EXTI_LINE_7)) {
+    LL_EXTI_ClearFlag_0_31(LL_EXTI_LINE_7);
+    in_home_position = 1;
+    position_um = 0;
+  }
+}
 void TIM1_UP_TIM10_IRQHandler() {
   if (LL_TIM_IsActiveFlag_UPDATE(TIM1)) {
     LL_TIM_ClearFlag_UPDATE(TIM1);
@@ -160,6 +196,7 @@ void TIM1_UP_TIM10_IRQHandler() {
       }
       SetPinsFromState(&MotorStates[state_counter]);
       steps++;
+      position_um += GANTRY_UM_PER_STEP;
     } else if (steps > nSteps) {
       state_counter -= 1;
       if (state_counter < 0) {
@@ -167,19 +204,23 @@ void TIM1_UP_TIM10_IRQHandler() {
       }
       SetPinsFromState(&MotorStates[state_counter]);
       steps--;
+      position_um -= GANTRY_UM_PER_STEP;
     } else {
       steps = 0;
       nSteps = 0;
     }
   }
 }
-// optimized way for non pwm
-// static void SetPinsFromState(motorState_t *motorState) {
-//   COIL1_PORT->ODR |= motorState->Coil1 & 0xFFFF;
-//   COIL2_PORT->ODR |= motorState->Coil2 & 0xFFFF;
-//   COIL1_PORT->ODR &= (motorState->Coil1 >> 16) & 0xFFFF;
-//   COIL2_PORT->ODR &= (motorState->Coil2 >> 16) & 0xFFFF;
-// }
+void stepper_home() {
+  while (!in_home_position) {
+    nSteps = -1;
+  }
+}
+void stepper_goto(uint32_t set_position_um) {
+  int64_t distance = (int64_t)set_position_um - (int64_t)position_um;
+  nSteps = 0;
+  Step(distance / GANTRY_UM_PER_STEP);
+}
 static void SetPinsFromState(motorState_t *motorState) {
   if ((motorState->Coil1 & 0b10) != 0) {
     LL_TIM_CC_EnableChannel(TIM4, LL_TIM_CHANNEL_CH1);

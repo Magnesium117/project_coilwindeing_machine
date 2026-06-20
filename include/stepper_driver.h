@@ -5,6 +5,8 @@
 
 #define COIL1_PORT GPIOB
 #define COIL2_PORT GPIOB
+#define HOMING_PORT GPIOB
+#define HOMING_PIN LL_GPIO_PIN_7
 // 13 und 14 sind die JTAG Pins -> man kann dann nicht gescheit
 // uploaden
 #define PIN_11 LL_GPIO_PIN_6
@@ -13,6 +15,7 @@
 #define PIN_22 LL_GPIO_PIN_9
 void Step(int N);
 void initStepperDriver();
+void stepper_home();
 
 #endif // !STEPPER_DRIVER_H
 #define STEPPER_DRIVER_H

@@ -35,6 +35,7 @@ int main() {
   initUART();
   initDebugPins();
   initStepperDriver();
+  stepper_home();
   getParams();
   hx711_init();
   hx711_zero();
