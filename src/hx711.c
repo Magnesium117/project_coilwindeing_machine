@@ -23,8 +23,7 @@ static volatile double setpoint_Force = 0; // N
 volatile int32_t load1 = 0;
 volatile int32_t load2 = 0;
 
-volatile uint8_t data_ready1 = 0;
-volatile uint8_t data_ready2 = 0;
+volatile uint8_t data_ready = 0;
 
 static volatile int32_t offset1 = 0;
 static volatile int32_t offset2 = 0;
@@ -43,7 +42,7 @@ static void set_optimal_current(double load_tourque);
 void hx711_zero(void) {
   int32_t o1 = 0, o2 = 0;
   for (int i = 0; i < 10; i++) {
-    while (data_ready1 == 0 || data_ready2 == 0)
+    while (data_ready == 0)
       ;
     o1 += load1 / 10;
     o2 += load2 / 10;
@@ -216,8 +215,7 @@ void TIM8_CC_IRQHandler(void) {
       load1 = (int32_t)hx_temp_data1 - offset1;
       load2 = (int32_t)hx_temp_data2 - offset2;
 
-      data_ready1 = 1;
-      data_ready2 = 1;
+      data_ready = 1;
 
       hx_reading = 0;
 
@@ -231,9 +229,8 @@ void TIM8_CC_IRQHandler(void) {
 }
 void hx711While() {
   /* Keep the original load-cell output intact. */
-  if (data_ready1 && data_ready2) {
-    data_ready1 = 0;
-    data_ready2 = 0;
+  if (data_ready) {
+    data_ready = 0;
     double load1_tourque = load1 * LOADCELL_SENSITIVITY;
     double load2_tourque = load2 * LOADCELL_SENSITIVITY;
     set_optimal_current(load1_tourque + load2_tourque);
